@@ -75,6 +75,7 @@ input, textarea {
 /* Safe area support for iOS */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
 .safe-top    { padding-top:    env(safe-area-inset-top, 0px); }
+.pb-safe     { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* Smooth theme transition on background/border/color only */
 *, *::before, *::after {

@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay, ExerciseConfig } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
+import { addSession } from "@/db/profileStore";
+import type { ExerciseLog } from "@/db/profileStore";
 import type { TimerMode, Theme } from "@/App";
 
 interface ExerciseDetailProps {
@@ -286,6 +288,29 @@ export default function ExerciseDetail({
         set4Weight,
         unit,
       });
+
+      // Also save to localStorage profile store for calendar/analytics
+      const log: ExerciseLog = {
+        exerciseName: exercise.name,
+        set1Weight,
+        topSetWeight,
+        topSetReps,
+        set3Weight,
+        set4Weight,
+        warmupEnabled,
+        warmupWeight,
+        isCompleted: true,
+        unit,
+      };
+      addSession(profile, {
+        date: today,
+        dayId: day.id,
+        dayLabel: day.dayLabel,
+        dayTitle: day.title,
+        timestamp: Date.now(),
+        exercises: [log],
+      });
+
       window.dispatchEvent(new Event("gym_db_update"));
     }
   };
