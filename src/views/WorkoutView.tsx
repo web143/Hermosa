@@ -44,11 +44,6 @@ const cardVariants: Variants = {
   }),
 };
 
-const listVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: { transition: { staggerChildren: 0.06 } },
-};
-
 const itemVariants: Variants = {
   hidden: { opacity: 0, x: -20 },
   visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 260, damping: 24 } },
@@ -249,9 +244,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   // ───── PHASE 2: PREPARE ─────
   if (phase === "prepare" && selectedDay) {
     return (
-      <div className={`min-h-full ${bg} ${textPrimary} flex flex-col relative overflow-hidden`}>
-        {/* Hero Background */}
-        <div className="absolute inset-0">
+      <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
+        {/* Hero Background — position fixed so it doesn't interfere with scroll */}
+        <div className="fixed inset-0">
           {(() => {
             const heroBg = getImageSrc(selectedDay.heroBg);
             return heroBg ? (
@@ -267,9 +262,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           }
         </div>
 
-        {/* Header */}
-        <header className="relative z-20 safe-top">
-          <div className="max-w-2xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
+        {/* Scrollable content */}
+        <div className="relative z-10 flex-1 overflow-y-auto max-w-2xl mx-auto w-full px-4 pt-4 pb-36">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
             <button onClick={backToSelect}
               className={`w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-md border transition-all active:scale-90 ${
                 isDark
@@ -301,11 +297,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               </button>
             </div>
           </div>
-        </header>
 
-        {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col max-w-2xl mx-auto w-full px-4">
-          <div className="mt-8 mb-6">
+          {/* Day info */}
+          <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <span className={`text-[10px] font-mono font-bold tracking-widest uppercase px-2.5 py-1 rounded-full border backdrop-blur ${
                 isDark ? "bg-zinc-900/60 border-zinc-800/60 text-zinc-400" : "bg-white/80 border-zinc-200 text-zinc-500"
@@ -317,23 +311,24 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               }`}>{timerMode === "fast" ? "⚡ Rápido" : "🟢 Normal"}</span>
             </div>
 
-            <h1 className={`text-5xl font-black tracking-tighter leading-none mb-2 ${isDark ? "text-white" : "text-zinc-900"}`}>
+            <h1 className={`text-4xl font-black tracking-tighter leading-none mb-2 ${isDark ? "text-white" : "text-zinc-900"}`}>
               {selectedDay.title}
             </h1>
             <p className={`text-sm font-mono ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
               {selectedDay.subtitle} · {selectedDay.duration}
             </p>
 
+            {/* Stats cards — inline, no backdrop-blur to ensure visibility */}
             <div className="flex gap-3 mt-4">
               {[
                 { label: "Ejercicios", value: selectedDay.exercises.length },
                 { label: "Descanso", value: timerMode === "normal" ? "3 min" : "2 min" },
                 { label: "Series", value: "3–4 c/u" },
               ].map(({ label, value }) => (
-                <div key={label} className={`text-center backdrop-blur border rounded-xl px-4 py-2 ${
-                  isDark ? "bg-zinc-900/60 border-zinc-800/60" : "bg-white/80 border-zinc-200 shadow-sm"
+                <div key={label} className={`flex-1 text-center border rounded-xl px-3 py-2 ${
+                  isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
                 }`}>
-                  <p className={`text-xs font-mono ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{label}</p>
+                  <p className={`text-[10px] font-mono ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{label}</p>
                   <p className={`text-lg font-black ${isDark ? "text-white" : "text-zinc-900"}`}>{value}</p>
                 </div>
               ))}
@@ -341,18 +336,18 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
 
           {/* Exercise List */}
-          <motion.div className="flex-1 space-y-2 pb-28" variants={listVariants} initial="hidden" animate="visible">
+          <div className="space-y-3">
             {selectedDay.exercises.map((exercise, idx) => {
               const imgSrc = getImageSrc(exercise.imageKey);
               const tagAccent = isElla
                 ? "bg-pink-500/10 text-pink-500 border-pink-500/20"
                 : "bg-amber-500/10 text-amber-500 border-amber-500/20";
               return (
-                <motion.div key={idx} variants={itemVariants}
-                  className={`w-full text-left rounded-2xl p-3 flex items-center gap-3 backdrop-blur-md border ${
+                <motion.div key={idx} variants={itemVariants} initial="hidden" animate="visible"
+                  className={`rounded-2xl p-3 flex items-center gap-3 border ${
                     isDark
-                      ? "bg-zinc-900/60 border-zinc-800/50"
-                      : "bg-white/80 border-zinc-200 shadow-sm"
+                      ? "bg-zinc-900/80 border-zinc-700/60"
+                      : "bg-white/90 border-zinc-200 shadow-sm"
                   }`}>
                   <div className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 ${isDark ? "bg-zinc-800" : "bg-zinc-100"}`}>
                     {imgSrc
@@ -374,14 +369,19 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                       <p className={`text-[10px] mt-0.5 truncate ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{exercise.notes}</p>
                     )}
                   </div>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded-full border ${
+                    isDark ? "bg-zinc-800/80 text-zinc-500 border-zinc-700" : "bg-zinc-100 text-zinc-400 border-zinc-200"
+                  }`}>
+                    {idx + 1}
+                  </span>
                 </motion.div>
               );
             })}
-          </motion.div>
+          </div>
         </div>
 
-        {/* Start CTA */}
-        <div className="fixed bottom-0 left-0 right-0 z-20 p-4 safe-bottom">
+        {/* Fixed Start CTA — above bottom nav */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 64px)" }}>
           <div className="max-w-2xl mx-auto">
             <motion.button
               id="start-workout-btn"
@@ -654,7 +654,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       </div>
 
       {/* ── Bottom Nav: Prev / Complete / Next ──────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 p-4 safe-bottom" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 8px)" }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 72px)" }}>
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-2">
             {/* Prev */}
