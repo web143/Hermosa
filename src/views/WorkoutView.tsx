@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
-  ChevronRight, Plus, Minus, Sparkles, Info, Flame, X,
+  ChevronRight, Plus, Minus, Sparkles, Info, Flame,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
@@ -200,8 +200,6 @@ export default function WorkoutView({ profile, theme, onTimerModeChange }: Worko
   const accentText = isElla ? "text-pink-400" : "text-amber-400";
   const accentBorder = isElla ? "border-pink-500/40" : "border-amber-500/40";
   const accentBg = isElla ? "bg-pink-500/10" : "bg-amber-500/10";
-  const accentGradient = isElla ? "from-pink-600/70 to-rose-700/50" : "from-amber-500/70 to-orange-600/50";
-
   // ==================================================================
   // PHASE 1 — Day Selection
   // ==================================================================
