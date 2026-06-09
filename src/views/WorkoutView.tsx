@@ -207,7 +207,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   };
 
   const isNameCustomized = (idx: number, originalName: string): boolean => {
-    return (temporaryNames[idx] || getPermanentRename(profile, originalName)) !== undefined;
+    return temporaryNames[idx] !== undefined || getPermanentRename(profile, originalName) !== null;
   };
 
   const isCalfSeated = (name: string): boolean => name.includes("Pantorrilla Sentado");
@@ -305,6 +305,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       }
       return;
     }
+    e.preventDefault();
     ref.currentY = touchY;
     const cardEls = document.querySelectorAll("[data-exercise-card]");
     let overIdx: number | null = null;
