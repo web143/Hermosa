@@ -53,7 +53,7 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
   const verseIndex = (new Date().getDate() - 1) % VERSES.length;
   const dailyVerse = VERSES[verseIndex];
 
-  const bg = isDark ? "bg-zinc-950" : "bg-gradient-to-b from-pink-50/60 via-white to-white";
+  const bg = isDark ? "bg-zinc-950" : "bg-gradient-to-b from-pink-100 via-pink-50/30 to-white";
   const textPrimary = isDark ? "text-zinc-100" : "text-zinc-900";
   const textSecondary = isDark ? "text-zinc-400" : "text-zinc-500";
   const textMuted = isDark ? "text-zinc-600" : "text-zinc-400";
@@ -130,8 +130,8 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
         </div>
 
         {/* ── Premium Daily Bible Verse ─────────────────────────── */}
-        <div className={`border rounded-2xl px-5 py-7 ${cardBg} ${
-          isDark ? "" : "border-pink-200/40 shadow-[inset_0_0_12px_rgba(236,72,153,0.08)]"
+        <div className={`border rounded-2xl px-5 py-9 min-h-[160px] ${cardBg} ${
+          isDark ? "" : "border-pink-300/40 shadow-[inset_0_0_20px_rgba(236,72,153,0.25)]"
         }`}>
           <div className="flex items-start gap-4">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
