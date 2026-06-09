@@ -966,20 +966,11 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
   return (
     <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
-      {/* Toast */}
-      {validationToast && validationToast.length > 0 && (
-        <div className="fixed top-4 left-4 right-4 z-50 max-w-2xl mx-auto">
-          <div className="bg-red-500/90 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl text-center backdrop-blur-sm">
-            {validationToast}
-          </div>
-        </div>
-      )}
-
-      {/* ── Centered Error ──────────────────────────────── */}
-      {centerError && (
+      {/* ── Centered Error / Validation ────────────────────────── */}
+      {(validationToast || centerError) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-red-500/90 text-white text-2xl font-black px-8 py-10 rounded-3xl shadow-2xl text-center max-w-sm mx-4 backdrop-blur-md leading-relaxed">
-            {centerError}
+            {validationToast || centerError}
           </div>
         </div>
       )}
