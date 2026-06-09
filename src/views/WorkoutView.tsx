@@ -22,11 +22,15 @@ interface ExerciseExecutionState {
   completed: boolean;
   warmupEnabled: boolean;
   warmupWeight: string;
-  set1Weight: string;
   topSetWeight: string;
   topSetReps: string;
-  set3Weight: string;
-  set4Weight: string;
+  bo1Weight: string;
+  bo1Reps: string;
+  bo2Weight: string;
+  bo2Reps: string;
+  bo3Enabled: boolean;
+  bo3Weight: string;
+  bo3Reps: string;
 }
 
 type Phase = "select" | "execution";
@@ -49,6 +53,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [showModePicker, setShowModePicker] = useState(false);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [exerciseStates, setExerciseStates] = useState<ExerciseExecutionState[]>([]);
+  const [validationMsg, setValidationMsg] = useState("");
 
   const selectedDay = routine.find((d) => d.id === selectedDayId) || null;
 
@@ -63,11 +68,15 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         completed: false,
         warmupEnabled: false,
         warmupWeight: "",
-        set1Weight: "",
         topSetWeight: "",
         topSetReps: "",
-        set3Weight: "",
-        set4Weight: "",
+        bo1Weight: "",
+        bo1Reps: "",
+        bo2Weight: "",
+        bo2Reps: "",
+        bo3Enabled: false,
+        bo3Weight: "",
+        bo3Reps: "",
       }))
     );
     setShowModePicker(false);
@@ -82,11 +91,15 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         const st = exerciseStates[idx];
         return {
           exerciseName: ex.name,
-          set1Weight: st.set1Weight,
           topSetWeight: st.topSetWeight,
           topSetReps: st.topSetReps,
-          set3Weight: st.set3Weight,
-          set4Weight: st.set4Weight,
+          bo1Weight: st.bo1Weight,
+          bo1Reps: st.bo1Reps,
+          bo2Weight: st.bo2Weight,
+          bo2Reps: st.bo2Reps,
+          bo3Weight: st.bo3Weight,
+          bo3Reps: st.bo3Reps,
+          bo3Enabled: st.bo3Enabled,
           warmupEnabled: st.warmupEnabled,
           warmupWeight: st.warmupWeight,
           isCompleted: st.completed,
@@ -302,42 +315,48 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const isLastExercise = currentExIdx === totalExercises - 1;
   const isFirstExercise = currentExIdx === 0;
 
-  // Validation: check 3 mandatory sets have values
+  // Validation: check weight + reps > 0 for Top Set, BO1, BO2 (BO3 and warm-up excluded)
   const topSetDone = parseFloat(currentState.topSetWeight) > 0 && parseInt(currentState.topSetReps) > 0;
-  const backoff1Done = parseFloat(currentState.set3Weight) > 0;
-  const backoff2Done = parseFloat(currentState.set4Weight) > 0;
-  const canComplete = topSetDone && backoff1Done && backoff2Done;
+  const bo1Done = parseFloat(currentState.bo1Weight) > 0 && parseInt(currentState.bo1Reps) > 0;
+  const bo2Done = parseFloat(currentState.bo2Weight) > 0 && parseInt(currentState.bo2Reps) > 0;
+  const canComplete = topSetDone && bo1Done && bo2Done;
   const isCompleted = currentState.completed;
 
-  // Can we navigate to next exercise?
-  const nextAvailable = isCompleted || canComplete;
+  // Sequential lock: can only advance forward after exercise is marked complete
+  const nextAvailable = isCompleted;
 
-  const handleComplete = async () => {
-    if (!canComplete && !isCompleted) return;
-
-    const newCompleted = !isCompleted;
-    updateExState(currentExIdx, { completed: newCompleted });
-
-    if (newCompleted) {
-      const today = new Date().toLocaleDateString("en-CA");
-      try {
-        await gymDb.addWorkoutLog({
-          date: today,
-          timestamp: Date.now(),
-          profile,
-          dayId: selectedDay.id,
-          exerciseName: currentEx.name,
-          set1Weight: currentState.set1Weight,
-          topSetWeight: currentState.topSetWeight,
-          topSetReps: currentState.topSetReps,
-          set3Weight: currentState.set3Weight,
-          set4Weight: currentState.set4Weight,
-          unit: "kg",
-        });
-      } catch (e) {
-        console.error("Save error", e);
-      }
+  const handleComplete = () => {
+    if (isCompleted) {
+      updateExState(currentExIdx, { completed: false });
+      return;
     }
+
+    if (!canComplete) {
+      setValidationMsg("Debes registrar libras y repeticiones en los 3 sets principales para completar este ejercicio");
+      setTimeout(() => setValidationMsg(""), 3500);
+      return;
+    }
+
+    updateExState(currentExIdx, { completed: true });
+
+    const today = new Date().toLocaleDateString("en-CA");
+    gymDb.addWorkoutLog({
+      date: today,
+      timestamp: Date.now(),
+      profile,
+      dayId: selectedDay.id,
+      exerciseName: currentEx.name,
+      topSetWeight: currentState.topSetWeight,
+      topSetReps: currentState.topSetReps,
+      bo1Weight: currentState.bo1Weight,
+      bo1Reps: currentState.bo1Reps,
+      bo2Weight: currentState.bo2Weight,
+      bo2Reps: currentState.bo2Reps,
+      bo3Weight: currentState.bo3Weight,
+      bo3Reps: currentState.bo3Reps,
+      bo3Enabled: currentState.bo3Enabled,
+      unit: "kg",
+    }).catch((e) => console.error("Save error", e));
   };
 
   const goToExercise = (idx: number) => {
@@ -443,11 +462,12 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           transition={{ type: "spring", stiffness: 200, damping: 22, delay: 0.1 }}
           className={`mx-4 mt-4 rounded-3xl border overflow-hidden ${cardBg}`}
         >
+          {/* Warm-up toggle bar */}
           <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? "border-zinc-800/60" : "border-zinc-100"}`}>
             <div>
               <p className={`text-xs font-black tracking-widest uppercase ${textPrimary}`}>SETS & REPS</p>
               <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>
-                {currentState.warmupEnabled ? "Calentamiento + 3-4 series" : "3-4 series al fallo"}
+                {currentState.warmupEnabled ? "Calentamiento + 4 sets de trabajo" : "4 sets de trabajo"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -465,67 +485,47 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             </div>
           </div>
 
-          {/* Warm-up */}
+          {/* Warm-up set (optional, no reps) */}
           {currentState.warmupEnabled && (
-            <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
-              <div>
-                <p className={`text-sm font-semibold ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>Warm-Up</p>
-                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>~50% del peso</p>
+            <div className={`px-5 py-4 border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-semibold ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>Calentamiento</p>
+                  <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>~50% del peso · Sin registro de reps</p>
+                </div>
+                <NumericStepper
+                  value={currentState.warmupWeight}
+                  onChange={(v) => updateExState(currentExIdx, { warmupWeight: v })}
+                  unit="kg" step={step} isDark={isDark}
+                />
               </div>
-              <NumericStepper
-                value={currentState.warmupWeight}
-                onChange={(v) => updateExState(currentExIdx, { warmupWeight: v })}
-                unit="kg"
-                step={step}
-                isDark={isDark}
-              />
             </div>
           )}
 
-          {/* Set 1 · Aproximación */}
-          <div className={`px-5 py-4 border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Set 1 · Aproximación</p>
-                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>RPE 7</p>
-              </div>
-              <NumericStepper
-                value={currentState.set1Weight}
-                onChange={(v) => updateExState(currentExIdx, { set1Weight: v })}
-                unit="kg"
-                step={step}
-                isDark={isDark}
-              />
-            </div>
-          </div>
-
-          {/* Top Set */}
+          {/* Set 1 · Top Set (mandatory, weight + reps) */}
           <div className={`px-5 py-4 border-b border-l-2 ${accentBg} ${accentBorder} ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
             <div className="flex items-center justify-between mb-3">
               <p className={`text-sm font-black ${accentText} flex items-center gap-1.5`}>
-                Top Set <Sparkles size={13} className="animate-pulse" />
+                Set 1 · Top Set <Sparkles size={13} className="animate-pulse" />
               </p>
+              <span className={`text-[10px] font-mono ${textMuted}`}>Máximo esfuerzo</span>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col items-center gap-1 flex-1">
                 <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Peso (kg)</p>
                 <NumericStepper
                   value={currentState.topSetWeight}
                   onChange={(v) => updateExState(currentExIdx, { topSetWeight: v })}
-                  unit="kg"
-                  step={step}
-                  highlight
-                  isDark={isDark}
+                  unit="kg" step={step} highlight isDark={isDark}
                 />
               </div>
-              <div className="text-zinc-700 font-black text-xl">×</div>
-              <div className="flex flex-col items-center gap-1">
+              <span className="text-zinc-600 font-black text-xl">×</span>
+              <div className="flex flex-col items-center gap-1 flex-1">
                 <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Reps</p>
                 <RepStepper
                   value={currentState.topSetReps}
                   onChange={(v) => updateExState(currentExIdx, { topSetReps: v })}
-                  highlight
-                  isDark={isDark}
+                  highlight isDark={isDark}
                 />
               </div>
             </div>
@@ -537,38 +537,73 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             )}
           </div>
 
-          {/* Back-off sets */}
-          <div className="px-5 py-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Back-off</p>
-                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>-10% del peso</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-600 font-mono w-8 text-right">BO1</span>
-                  <NumericStepper
-                    value={currentState.set3Weight}
-                    onChange={(v) => updateExState(currentExIdx, { set3Weight: v })}
-                    unit="kg"
-                    step={step}
-                    isDark={isDark}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-600 font-mono w-8 text-right">BO2</span>
-                  <NumericStepper
-                    value={currentState.set4Weight}
-                    onChange={(v) => updateExState(currentExIdx, { set4Weight: v })}
-                    unit="kg"
-                    step={step}
-                    isDark={isDark}
-                  />
-                </div>
-              </div>
+          {/* Set 2 · Back-off 1 (mandatory, weight + reps) */}
+          <SetBlock
+            label="Set 2 · Back-off 1"
+            desc="Baja ligeramente el peso"
+            weight={currentState.bo1Weight}
+            reps={currentState.bo1Reps}
+            onWeightChange={(v) => updateExState(currentExIdx, { bo1Weight: v })}
+            onRepsChange={(v) => updateExState(currentExIdx, { bo1Reps: v })}
+            isDark={isDark} step={step}
+          />
+
+          {/* Set 3 · Back-off 2 (mandatory, weight + reps) */}
+          <SetBlock
+            label="Set 3 · Back-off 2"
+            desc="Baja un poco más el peso"
+            weight={currentState.bo2Weight}
+            reps={currentState.bo2Reps}
+            onWeightChange={(v) => updateExState(currentExIdx, { bo2Weight: v })}
+            onRepsChange={(v) => updateExState(currentExIdx, { bo2Reps: v })}
+            isDark={isDark} step={step}
+          />
+
+          {/* Set 4 · Back-off 3 (optional toggle + weight + reps) */}
+          <div className={`border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
+            <div className={`px-5 py-3 flex items-center justify-between ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
+              <p className={`text-xs font-bold ${textMuted}`}>Set 4 · Back-off 3 (opcional)</p>
+              <button
+                onClick={() => updateExState(currentExIdx, { bo3Enabled: !currentState.bo3Enabled })}
+                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
+                  currentState.bo3Enabled ? "bg-pink-500" : "bg-zinc-700"
+                }`}
+              >
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${
+                  currentState.bo3Enabled ? "left-6" : "left-0.5"
+                }`} />
+              </button>
             </div>
+            {currentState.bo3Enabled && (
+              <div className="px-5 pb-4">
+                <SetBlock
+                  label="Back-off 3"
+                  desc="Cuarto set opcional"
+                  weight={currentState.bo3Weight}
+                  reps={currentState.bo3Reps}
+                  onWeightChange={(v) => updateExState(currentExIdx, { bo3Weight: v })}
+                  onRepsChange={(v) => updateExState(currentExIdx, { bo3Reps: v })}
+                  isDark={isDark} step={step}
+                />
+              </div>
+            )}
           </div>
         </motion.div>
+
+        {/* Validation error toast */}
+        <AnimatePresence>
+          {validationMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-start gap-2"
+            >
+              <span className="text-sm flex-shrink-0 mt-0.5">⚠️</span>
+              <p className="text-xs font-semibold text-red-500 leading-relaxed">{validationMsg}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Rest Timer ─────────────────────────────────────── */}
         <WorkoutTimer
@@ -860,6 +895,40 @@ function RepStepper({
         className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${btnBase}`}>
         <Plus size={14} strokeWidth={2.5} />
       </motion.button>
+    </div>
+  );
+}
+
+// ─── Set Block (label + weight + reps row) ─────────────────────────────
+function SetBlock({ label, desc, weight, reps, onWeightChange, onRepsChange, isDark, step }: {
+  label: string;
+  desc: string;
+  weight: string;
+  reps: string;
+  onWeightChange: (v: string) => void;
+  onRepsChange: (v: string) => void;
+  isDark: boolean;
+  step: number;
+}) {
+  const textMuted = isDark ? "text-zinc-500" : "text-zinc-400";
+  const borderCls = isDark ? "border-zinc-800/40" : "border-zinc-100";
+  return (
+    <div className={`px-5 py-4 border-b ${borderCls}`}>
+      <div className="flex items-center justify-between mb-3">
+        <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>{label}</p>
+        <span className={`text-[10px] font-mono ${textMuted}`}>{desc}</span>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col items-center gap-1 flex-1">
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Peso (kg)</p>
+          <NumericStepper value={weight} onChange={onWeightChange} unit="kg" step={step} isDark={isDark} />
+        </div>
+        <span className="text-zinc-600 font-black text-xl">×</span>
+        <div className="flex flex-col items-center gap-1 flex-1">
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Reps</p>
+          <RepStepper value={reps} onChange={onRepsChange} isDark={isDark} />
+        </div>
+      </div>
     </div>
   );
 }
