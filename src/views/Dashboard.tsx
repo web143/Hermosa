@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
 import { LogOut, Settings, BarChart2, History, ChevronRight, Flame, Trophy, Sun, Moon } from "lucide-react";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
 import type { WorkoutLog } from "@/db/olympusDb";
 import type { Theme } from "@/App";
+
+const dayCardVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { type: "spring", stiffness: 260, damping: 24, delay: i * 0.08 },
+  }),
+};
+
+const modalVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 300, damping: 28 } },
+  exit: { opacity: 0, scale: 0.95, transition: { duration: 0.15 } },
+};
 
 interface DashboardProps {
   profile: ProfileId;
@@ -164,6 +179,7 @@ export default function Dashboard({ profile, unit, theme, onToggleUnit, onToggle
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
       {showHistory && (
         <HistoryModal
           logs={historyLogs}
@@ -187,6 +203,7 @@ export default function Dashboard({ profile, unit, theme, onToggleUnit, onToggle
           onClose={() => setShowSettings(false)}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -199,10 +216,16 @@ function DayCard({ day, index, isElla, isDark, onClick }: {
   const accentGradient = isElla ? "from-pink-600/70 to-rose-700/50" : "from-amber-500/70 to-orange-600/50";
 
   return (
-    <button
+    <motion.button
       id={`day-card-${index}`}
       onClick={onClick}
-      className={`w-full text-left rounded-2xl overflow-hidden relative group active:scale-[0.98] transition-transform duration-150 shadow-sm ${
+      variants={dayCardVariants}
+      custom={index}
+      initial="hidden"
+      animate="visible"
+      whileHover={{ scale: 1.015 }}
+      whileTap={{ scale: 0.98 }}
+      className={`w-full text-left rounded-2xl overflow-hidden relative group shadow-sm ${
         isDark ? "shadow-black/30" : "shadow-zinc-200/80"
       }`}
       style={{ minHeight: "120px" }}
@@ -252,7 +275,7 @@ function DayCard({ day, index, isElla, isDark, onClick }: {
           isDark ? "text-zinc-500 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
         }`} />
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -269,7 +292,13 @@ function HistoryModal({ logs, logsByDate, unit, isDark, isElla, onClose, onDelet
   const accent = isElla ? "text-pink-500" : "text-amber-500";
 
   return (
-    <div className={`fixed inset-0 z-50 ${bg} backdrop-blur-xl flex flex-col animate-slide-up`}>
+    <motion.div
+      variants={modalVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className={`fixed inset-0 z-50 ${bg} backdrop-blur-xl flex flex-col`}
+    >
       <div className={`flex items-center justify-between p-4 border-b ${border}`}>
         <h2 className={`font-black text-lg tracking-tight ${text}`}>📊 Historial</h2>
         <button onClick={onClose} className={`p-2 rounded-xl border text-sm font-bold ${isDark ? "bg-zinc-900 border-zinc-800 text-zinc-300" : "bg-zinc-100 border-zinc-200 text-zinc-600"} active:scale-95 transition-all`}>✕</button>
@@ -304,7 +333,7 @@ function HistoryModal({ logs, logsByDate, unit, isDark, isElla, onClose, onDelet
           ))
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -321,7 +350,13 @@ function SettingsModal({ isElla, isDark, unit, theme, onToggleUnit, onToggleThem
   const accentGradient = isElla ? "from-pink-500 to-rose-600" : "from-amber-400 to-orange-500";
 
   return (
-    <div className={`fixed inset-0 z-50 ${bg} flex flex-col animate-slide-up safe-bottom`}>
+    <motion.div
+      variants={modalVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className={`fixed inset-0 z-50 ${bg} flex flex-col safe-bottom`}
+    >
       <div className={`flex items-center justify-between p-4 border-b ${border}`}>
         <h2 className={`font-black text-lg tracking-tight ${text}`}>⚙️ Configuración</h2>
         <button onClick={onClose} className={`p-2 rounded-xl border text-sm font-bold ${isDark ? "bg-zinc-900 border-zinc-800 text-zinc-300" : "bg-zinc-100 border-zinc-200 text-zinc-600"} active:scale-95 transition-all`}>✕</button>
@@ -394,6 +429,6 @@ function SettingsModal({ isElla, isDark, unit, theme, onToggleUnit, onToggleThem
           </div>
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }

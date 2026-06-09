@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Sparkles, Zap, Check, RotateCcw, Plus, Minus, Info } from "lucide-react";
+import { motion } from "framer-motion";
 import { getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay, ExerciseConfig } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
@@ -48,17 +49,18 @@ function NumericStepper({
 
   return (
     <div className="flex items-center gap-2">
-      <button
+      <motion.button
         type="button"
         onClick={decrement}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all active:scale-90 ${
+        whileTap={{ scale: 0.85 }}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
           highlight
             ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
             : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
         }`}
       >
         <Minus size={14} strokeWidth={2.5} />
-      </button>
+      </motion.button>
 
       <input
         type="text"
@@ -73,17 +75,18 @@ function NumericStepper({
         }`}
       />
 
-      <button
+      <motion.button
         type="button"
         onClick={increment}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all active:scale-90 ${
+        whileTap={{ scale: 0.85 }}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
           highlight
             ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
             : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
         }`}
       >
         <Plus size={14} strokeWidth={2.5} />
-      </button>
+      </motion.button>
     </div>
   );
 }
@@ -99,17 +102,18 @@ function RepStepper({
   const numVal = parseInt(value) || 0;
   return (
     <div className="flex items-center gap-2">
-      <button
+      <motion.button
         type="button"
         onClick={() => onChange(String(Math.max(0, numVal - 1)))}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all active:scale-90 ${
+        whileTap={{ scale: 0.85 }}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
           highlight
             ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
             : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
         }`}
       >
         <Minus size={14} strokeWidth={2.5} />
-      </button>
+      </motion.button>
       <input
         type="text"
         inputMode="numeric"
@@ -122,17 +126,18 @@ function RepStepper({
             : "border-zinc-700/60 text-zinc-100 focus:border-zinc-500"
         }`}
       />
-      <button
+      <motion.button
         type="button"
         onClick={() => onChange(String(numVal + 1))}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all active:scale-90 ${
+        whileTap={{ scale: 0.85 }}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
           highlight
             ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
             : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
         }`}
       >
         <Plus size={14} strokeWidth={2.5} />
-      </button>
+      </motion.button>
     </div>
   );
 }
@@ -389,7 +394,12 @@ export default function ExerciseDetail({
         </div>
 
         {/* ─── SETS & REPS Module ─────────────────────────────────── */}
-        <div className={`mx-4 mt-4 rounded-3xl border overflow-hidden ${cardBg}`}>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 200, damping: 22, delay: 0.1 }}
+          className={`mx-4 mt-4 rounded-3xl border overflow-hidden ${cardBg}`}
+        >
           
           {/* Module Header */}
           <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? "border-zinc-800/60" : "border-zinc-100"}`}>
@@ -527,10 +537,15 @@ export default function ExerciseDetail({
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* ─── Rest Timer ─────────────────────────────────────────── */}
-        <div className={`mx-4 mt-4 mb-6 rounded-3xl border p-5 ${cardBg}`}>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 200, damping: 22, delay: 0.2 }}
+          className={`mx-4 mt-4 mb-6 rounded-3xl border p-5 ${cardBg}`}
+        >
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className={`text-xs font-black tracking-widest uppercase ${textPrimary}`}>⏱ Descanso</p>
@@ -589,10 +604,11 @@ export default function ExerciseDetail({
                   {timerActive ? "Descansando..." : "Presiona Start después de completar cada serie."}
                 </p>
               )}
-              <button
+              <motion.button
                 id="timer-start-btn"
                 onClick={timerActive ? resetTimer : startTimer}
-                className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide transition-all active:scale-[0.97] flex items-center justify-center gap-2 ${
+                whileTap={{ scale: 0.95 }}
+                className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide transition-colors flex items-center justify-center gap-2 ${
                   timerActive
                     ? "bg-zinc-800 text-zinc-300 border border-zinc-700"
                     : `bg-gradient-to-r ${accentFrom} ${accentTo} text-white shadow-lg`
@@ -603,10 +619,10 @@ export default function ExerciseDetail({
                 ) : (
                   <><Zap size={15} /> {timerDone ? "Nuevo descanso" : "Start Timer"}</>
                 )}
-              </button>
+              </motion.button>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Notes */}
         {exercise.notes && (
@@ -635,10 +651,11 @@ export default function ExerciseDetail({
       {/* ─── Complete Exercise Button (Fixed Bottom) ──────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-zinc-950 via-zinc-950/95 to-transparent safe-bottom">
         <div className="max-w-2xl mx-auto">
-          <button
+          <motion.button
             id="complete-exercise-fixed-btn"
             onClick={handleComplete}
-            className={`w-full py-4 rounded-2xl font-black text-base tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-2xl ${
+            whileTap={{ scale: 0.95 }}
+            className={`w-full py-4 rounded-2xl font-black text-base tracking-wide transition-colors flex items-center justify-center gap-2.5 shadow-2xl ${
               isCompleted
                 ? "bg-emerald-500 text-white shadow-emerald-950/50"
                 : `bg-gradient-to-r ${accentFrom} ${accentTo} text-white shadow-black/50`
@@ -649,7 +666,7 @@ export default function ExerciseDetail({
             ) : (
               <><Check size={18} strokeWidth={3} /> Marcar como Completado</>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

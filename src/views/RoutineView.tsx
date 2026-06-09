@@ -1,7 +1,24 @@
 import { ArrowLeft, Heart, ChevronRight, Zap, Clock } from "lucide-react";
+import { motion, type Variants } from "framer-motion";
 import { getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay, ExerciseConfig } from "@/data/routines";
 import type { TimerMode, Theme } from "@/App";
+
+const listVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06 },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: {
+    opacity: 1, x: 0,
+    transition: { type: "spring", stiffness: 260, damping: 24 },
+  },
+};
 
 interface RoutineViewProps {
   profile: ProfileId;
@@ -124,7 +141,12 @@ export default function RoutineView({
         </div>
 
         {/* ── Exercise List ─────────────────────────────────────────── */}
-        <div className="flex-1 space-y-2 pb-28">
+        <motion.div
+          className="flex-1 space-y-2 pb-28"
+          variants={listVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {day.exercises.map((exercise, idx) => (
             <ExerciseRow
               key={idx}
@@ -135,7 +157,7 @@ export default function RoutineView({
               onClick={() => onSelectExercise(exercise)}
             />
           ))}
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Fixed Bottom CTA ─────────────────────────────────────────── */}
@@ -167,8 +189,13 @@ function ExerciseRow({ exercise, index, isElla, isDark, onClick }: {
     : "bg-amber-500/10 text-amber-500 border-amber-500/20";
 
   return (
-    <button id={`exercise-row-${index}`} onClick={onClick}
-      className={`w-full text-left rounded-2xl p-3 flex items-center gap-3 backdrop-blur-md border active:scale-[0.98] transition-all duration-150 group ${
+    <motion.button
+      id={`exercise-row-${index}`}
+      onClick={onClick}
+      variants={itemVariants}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
+      className={`w-full text-left rounded-2xl p-3 flex items-center gap-3 backdrop-blur-md border transition-colors duration-150 group ${
         isDark
           ? "bg-zinc-900/60 border-zinc-800/50 hover:bg-zinc-900/80 hover:border-zinc-700/60"
           : "bg-white/80 border-zinc-200 hover:bg-white hover:border-zinc-300 shadow-sm"
@@ -195,9 +222,16 @@ function ExerciseRow({ exercise, index, isElla, isDark, onClick }: {
         )}
       </div>
 
-      <ChevronRight size={18} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-all ${
-        isDark ? "text-zinc-600 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
-      }`} />
-    </button>
+      <motion.div
+        variants={{
+          hidden: { x: -5, opacity: 0 },
+          visible: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 200, damping: 18 } },
+        } satisfies Variants}
+      >
+        <ChevronRight size={18} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-all ${
+          isDark ? "text-zinc-600 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
+        }`} />
+      </motion.div>
+    </motion.button>
   );
 }

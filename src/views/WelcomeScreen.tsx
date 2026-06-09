@@ -1,4 +1,5 @@
 import { Lock, Heart, Zap, Moon, Sun } from "lucide-react";
+import { motion, type Variants } from "framer-motion";
 import type { ProfileId } from "@/data/routines";
 import type { Theme } from "@/App";
 
@@ -6,6 +7,16 @@ interface WelcomeScreenProps {
   theme: Theme;
   onSelectProfile: (profile: ProfileId) => void;
 }
+
+const welcomeVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.12, delayChildren: 0.2 } },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 260, damping: 24 } },
+};
 
 export default function WelcomeScreen({ theme, onSelectProfile }: WelcomeScreenProps) {
   const isDark = theme === "dark";
@@ -47,15 +58,24 @@ export default function WelcomeScreen({ theme, onSelectProfile }: WelcomeScreenP
         </div>
 
         {/* Profile Cards */}
-        <div className="w-full flex flex-col gap-3 animate-slide-up">
-          <p className={`text-[10px] font-mono font-bold tracking-widest uppercase text-center mb-1 ${
-            isDark ? "text-zinc-600" : "text-zinc-400"
-          }`}>
+        <motion.div
+          className="w-full flex flex-col gap-3"
+          variants={welcomeVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <motion.p
+            variants={cardVariants}
+            className={`text-[10px] font-mono font-bold tracking-widest uppercase text-center mb-1 ${
+              isDark ? "text-zinc-600" : "text-zinc-400"
+            }`}
+          >
             Selecciona tu perfil
-          </p>
+          </motion.p>
 
           {/* HANIEL — Locked */}
-          <button
+          <motion.button
+            variants={cardVariants}
             disabled
             className={`w-full py-5 px-5 rounded-2xl flex items-center justify-between cursor-not-allowed opacity-40 ${
               isDark
@@ -78,13 +98,16 @@ export default function WelcomeScreen({ theme, onSelectProfile }: WelcomeScreenP
               </div>
             </div>
             <Lock size={13} />
-          </button>
+          </motion.button>
 
           {/* ELLA — Active */}
-          <button
+          <motion.button
+            variants={cardVariants}
             id="profile-ella-btn"
             onClick={() => onSelectProfile("ella")}
-            className={`group w-full py-5 px-5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.98] shadow-sm ${
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className={`group w-full py-5 px-5 rounded-2xl flex items-center justify-between transition-colors shadow-sm ${
               isDark
                 ? "bg-gradient-to-br from-zinc-900 to-pink-950/30 border border-zinc-700/60 hover:border-pink-500/50 hover:shadow-pink-950/30 hover:shadow-xl"
                 : "bg-white border border-zinc-200 hover:border-pink-300 hover:shadow-pink-100/80 hover:shadow-xl"
@@ -111,8 +134,8 @@ export default function WelcomeScreen({ theme, onSelectProfile }: WelcomeScreenP
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <Zap size={14} className="text-pink-400 group-hover:text-pink-500 transition-colors" />
             </div>
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
 
         {/* Theme indicator */}
         <div className={`flex items-center gap-1.5 text-[10px] font-mono ${
