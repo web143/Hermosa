@@ -66,9 +66,9 @@ export function getSessionByDate(profile: ProfileId, date: string): DaySession |
   return read(profile).sessions.find((s) => s.date === date);
 }
 
-export function hasCompletedRoutineToday(profile: ProfileId, dayId: string): boolean {
+export function getTodaySession(profile: ProfileId): DaySession | undefined {
   const today = new Date().toLocaleDateString("en-CA");
-  return read(profile).sessions.some((s) => s.date === today && s.dayId === dayId);
+  return read(profile).sessions.find((s) => s.date === today);
 }
 
 export function updateSessionExercises(

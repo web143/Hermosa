@@ -7,7 +7,7 @@ import {
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
-import { addSession, hasCompletedRoutineToday } from "@/db/profileStore";
+import { addSession, getTodaySession } from "@/db/profileStore";
 import type { ExerciseLog } from "@/db/profileStore";
 import type { TimerMode, Theme } from "@/App";
 import type { TabId } from "@/components/BottomNav";
@@ -89,6 +89,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [exerciseStates, setExerciseStates] = useState<ExerciseExecutionState[]>([]);
   const [validationToast, setValidationToast] = useState<string | null>(null);
   const [repeatModalDayId, setRepeatModalDayId] = useState<string | null>(null);
+  const [repeatIsSameDay, setRepeatIsSameDay] = useState(false);
   const [modeModalOpen, setModeModalOpen] = useState(false);
 
   // ── Active Workout Persistence ──────────────────────────────
@@ -137,8 +138,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   }, [validationToast]);
 
   const goToPrepare = (dayId: string) => {
-    if (hasCompletedRoutineToday(profile, dayId)) {
+    const todaySession = getTodaySession(profile);
+    if (todaySession) {
       setRepeatModalDayId(dayId);
+      setRepeatIsSameDay(dayId === todaySession.dayId);
       return;
     }
     setSelectedDayId(dayId);
@@ -514,10 +517,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
               <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
-                Ya completaste esta rutina hoy
+                Ya completaste una rutina hoy
               </h2>
               <p className={`text-xs font-mono text-center mb-5 ${textMuted}`}>
-                ¿Deseas repetirla de todas formas o prefieres gestionar tus registros?
+                ¿Deseas repetir de todas formas o prefieres gestionar tus registros?
               </p>
               <div className="space-y-3">
                 <button
@@ -529,7 +532,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                   }}
                   className="w-full py-4 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md"
                 >
-                  <Flame size={16} /> Repetir Rutina
+                  <Flame size={16} /> {repeatIsSameDay ? "Repetir Rutina" : "Empezar Nueva Rutina"}
                 </button>
                 <button
                   onClick={() => {
