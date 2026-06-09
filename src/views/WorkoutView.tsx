@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, type Variants } from "framer-motion";
 import {
-  Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
+  Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
   ChevronRight, Plus, Minus, Sparkles, Info, Flame, BarChart3, Play,
-  GripVertical, Pencil,
+  Pencil,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
@@ -41,13 +41,28 @@ interface ExerciseExecutionState {
 type Phase = "select" | "prepare" | "execution";
 
 function useBodyScrollLock(locked: boolean) {
+  const scrollYRef = useRef(0);
   useEffect(() => {
     if (locked) {
+      scrollYRef.current = window.scrollY;
       document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollYRef.current}px`;
+      document.body.style.width = "100%";
     } else {
       document.body.style.overflow = "unset";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollYRef.current);
     }
-    return () => { document.body.style.overflow = "unset"; };
+    return () => {
+      document.body.style.overflow = "unset";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollYRef.current);
+    };
   }, [locked]);
 }
 
@@ -122,19 +137,8 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [repeatIsSameDay, setRepeatIsSameDay] = useState(false);
   const [modeModalOpen, setModeModalOpen] = useState(false);
 
-  // ── Drag-and-Drop ───────────────────────────────────────────
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  // ── Reorder ────────────────────────────────────────────────
   const [reorderKey, setReorderKey] = useState(0);
-  // Touch drag state (long-press activated)
-  const touchDragRef = useRef<{
-    idx: number;
-    startY: number;
-    currentY: number;
-    longPressTimer: ReturnType<typeof setTimeout> | null;
-    dragActivated: boolean;
-  } | null>(null);
-  const [touchDragOverIdx, setTouchDragOverIdx] = useState<number | null>(null);
 
   // ── Rename ──────────────────────────────────────────────────
   const [renameTarget, setRenameTarget] = useState<{
@@ -155,28 +159,34 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     selectedDayId: string;
     currentExIdx: number;
     exerciseStates: ExerciseExecutionState[];
+    phase: Phase;
+    hasStartedWorkout: boolean;
   } | null>(null);
 
+  // Restore on mount
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
-      if (saved.selectedDayId) {
+      if (saved.selectedDayId && saved.phase === "execution") {
         setSavedSession(saved);
       }
     } catch { /* ignore */ }
   }, [SESSION_KEY]);
 
+  // Persist whenever active state changes (all phases)
   useEffect(() => {
-    if (phase === "execution") {
+    if (phase === "execution" || (phase === "prepare" && hasStartedWorkout)) {
       localStorage.setItem(SESSION_KEY, JSON.stringify({
         selectedDayId,
         currentExIdx,
         exerciseStates,
+        phase,
+        hasStartedWorkout,
       }));
     }
-  }, [phase, currentExIdx, exerciseStates, selectedDayId, SESSION_KEY]);
+  }, [phase, currentExIdx, exerciseStates, selectedDayId, hasStartedWorkout, SESSION_KEY]);
 
   useEffect(() => {
     if (centerError) {
@@ -233,7 +243,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   };
 
   const backToSelect = () => {
-    clearSavedSession();
     setSelectedDayId(null);
     setPhase("select");
     setHasStartedWorkout(false);
@@ -257,82 +266,17 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     }
   };
 
-  // ── Drag handlers (mouse + touch) ───────────────────────────
-  const handleDragStart = (idx: number) => { setDragIdx(idx); };
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    setDragOverIdx(idx);
-  };
-  const handleDragEnd = () => {
-    if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx && selectedDay) {
-      const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
-      const next = [...saved];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(dragOverIdx, 0, moved);
-      setExerciseOrder(profile, selectedDay.id, next);
-      setReorderKey((k) => k + 1);
-    }
-    setDragIdx(null);
-    setDragOverIdx(null);
-  };
-
-  const handleTouchStart = (idx: number, e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchDragRef.current = {
-      idx,
-      startY: touch.clientY,
-      currentY: touch.clientY,
-      longPressTimer: setTimeout(() => {
-        if (touchDragRef.current) {
-          touchDragRef.current.dragActivated = true;
-          setDragIdx(idx);
-        }
-      }, 450),
-      dragActivated: false,
-    };
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const ref = touchDragRef.current;
-    if (!ref) return;
-    const touchY = e.touches[0].clientY;
-    if (!ref.dragActivated) {
-      const dy = Math.abs(touchY - ref.startY);
-      if (dy > 10) {
-        if (ref.longPressTimer) {
-          clearTimeout(ref.longPressTimer);
-          ref.longPressTimer = null;
-        }
-      }
-      return;
-    }
-    e.preventDefault();
-    ref.currentY = touchY;
-    const cardEls = document.querySelectorAll("[data-exercise-card]");
-    let overIdx: number | null = null;
-    cardEls.forEach((el, i) => {
-      const rect = el.getBoundingClientRect();
-      if (touchY >= rect.top && touchY <= rect.bottom) overIdx = i;
-    });
-    setTouchDragOverIdx(overIdx);
-  };
-  const handleTouchEnd = () => {
-    const ref = touchDragRef.current;
-    if (ref) {
-      if (ref.longPressTimer) {
-        clearTimeout(ref.longPressTimer);
-      }
-      if (ref.dragActivated && touchDragOverIdx !== null && ref.idx !== touchDragOverIdx && selectedDay) {
-        const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
-        const next = [...saved];
-        const [moved] = next.splice(ref.idx, 1);
-        next.splice(touchDragOverIdx, 0, moved);
-        setExerciseOrder(profile, selectedDay.id, next);
-        setReorderKey((k) => k + 1);
-      }
-    }
-    touchDragRef.current = null;
-    setDragIdx(null);
-    setTouchDragOverIdx(null);
+  // ── Reorder handlers ───────────────────────────────────────
+  const moveExercise = (idx: number, direction: -1 | 1) => {
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || !selectedDay || targetIdx >= selectedDay.exercises.length) return;
+    const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
+    const next = [...saved];
+    const tmp = next[idx];
+    next[idx] = next[targetIdx];
+    next[targetIdx] = tmp;
+    setExerciseOrder(profile, selectedDay.id, next);
+    setReorderKey((k) => k + 1);
   };
 
   // ── Rename handlers ─────────────────────────────────────────
@@ -458,7 +402,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               onClick={() => {
                 const saved = savedSession;
-                clearSavedSession();
                 setSelectedDayId(saved.selectedDayId);
                 setCurrentExIdx(saved.currentExIdx);
                 setExerciseStates(saved.exerciseStates);
@@ -556,7 +499,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
         {/* ── Repeat Routine Warning Modal ───────────────────── */}
         {repeatModalDayId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" style={{ touchAction: "none" }}>
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
               <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
                 Ya completaste una rutina hoy
@@ -691,23 +634,37 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               return (
                 <div
                   key={idx}
-                  data-exercise-card
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => handleTouchStart(idx, e)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
                   className={`rounded-2xl p-3 flex items-center gap-3 border transition-all select-none ${
-                    ((dragOverIdx === idx && dragIdx !== idx) || (touchDragOverIdx === idx && dragIdx !== idx))
-                      ? "border-pink-400/60 shadow-lg scale-[1.02]"
-                      : isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
-                  } ${dragIdx === idx ? "opacity-50" : ""}`}
+                    isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
+                  }`}
                 >
-                  {/* Drag handle */}
-                  <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded-lg hover:bg-zinc-700/30">
-                    <GripVertical size={16} className={isDark ? "text-zinc-600" : "text-zinc-400"} />
+                  {/* Arrow reorder buttons */}
+                  <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                    <button
+                      onClick={() => moveExercise(idx, -1)}
+                      disabled={idx === 0}
+                      className={`p-0.5 rounded-md transition-colors ${
+                        idx === 0
+                          ? "opacity-20 cursor-not-allowed"
+                          : isDark ? "hover:bg-zinc-700 text-zinc-500" : "hover:bg-zinc-200 text-zinc-400"
+                      }`}
+                    >
+                      <ArrowUp size={12} strokeWidth={3} />
+                    </button>
+                    <span className={`text-[10px] font-mono font-bold ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+                      {idx + 1}
+                    </span>
+                    <button
+                      onClick={() => moveExercise(idx, 1)}
+                      disabled={idx === exercisesToRender.length - 1}
+                      className={`p-0.5 rounded-md transition-colors ${
+                        idx === exercisesToRender.length - 1
+                          ? "opacity-20 cursor-not-allowed"
+                          : isDark ? "hover:bg-zinc-700 text-zinc-500" : "hover:bg-zinc-200 text-zinc-400"
+                      }`}
+                    >
+                      <ArrowDown size={12} strokeWidth={3} />
+                    </button>
                   </div>
 
                   {/* Image — hidden if name customized */}
@@ -747,11 +704,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                       <p className={`text-[10px] mt-0.5 truncate ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{exercise.notes}</p>
                     )}
                   </div>
-                  <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded-full border flex-shrink-0 ${
-                    isDark ? "bg-zinc-800/80 text-zinc-500 border-zinc-700" : "bg-zinc-100 text-zinc-400 border-zinc-200"
-                  }`}>
-                    {idx + 1}
-                  </span>
                 </div>
               );
             })}
@@ -792,7 +744,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
         {/* Mode Selection Modal */}
         {modeModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" style={{ touchAction: "none" }}>
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
               <h2 className={`text-lg font-black tracking-tight text-center mb-1 ${textPrimary}`}>
                 ¿Cómo quieres entrenar hoy?
@@ -839,7 +791,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           const isDirty = renameModalInput !== renameTarget.displayName;
           const hasCustomName = temporaryNames[renameTarget.idx] !== undefined || getPermanentRename(profile, renameTarget.originalName) !== null;
           return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" style={{ touchAction: "none" }}>
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
               <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
                 Editar nombre
@@ -969,7 +921,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
       {/* ── Centered Error / Validation ────────────────────────── */}
       {(validationToast || centerError) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" style={{ touchAction: "none" }}>
           <div className="bg-red-500/90 text-white text-2xl font-black px-8 py-10 rounded-3xl shadow-2xl text-center max-w-sm mx-4 backdrop-blur-md leading-relaxed">
             {validationToast || centerError}
           </div>
