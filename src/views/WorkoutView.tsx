@@ -126,8 +126,14 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [reorderKey, setReorderKey] = useState(0);
-  // Touch drag state
-  const touchDragRef = useRef<{ idx: number; startY: number; currentY: number } | null>(null);
+  // Touch drag state (long-press activated)
+  const touchDragRef = useRef<{
+    idx: number;
+    startY: number;
+    currentY: number;
+    longPressTimer: ReturnType<typeof setTimeout> | null;
+    dragActivated: boolean;
+  } | null>(null);
   const [touchDragOverIdx, setTouchDragOverIdx] = useState<number | null>(null);
 
   // ── Rename ──────────────────────────────────────────────────
@@ -271,14 +277,36 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   };
 
   const handleTouchStart = (idx: number, e: React.TouchEvent) => {
-    touchDragRef.current = { idx, startY: e.touches[0].clientY, currentY: e.touches[0].clientY };
-    setDragIdx(idx);
+    const touch = e.touches[0];
+    touchDragRef.current = {
+      idx,
+      startY: touch.clientY,
+      currentY: touch.clientY,
+      longPressTimer: setTimeout(() => {
+        if (touchDragRef.current) {
+          touchDragRef.current.dragActivated = true;
+          setDragIdx(idx);
+        }
+      }, 450),
+      dragActivated: false,
+    };
   };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchDragRef.current) return;
-    touchDragRef.current.currentY = e.touches[0].clientY;
-    const cardEls = document.querySelectorAll("[data-exercise-card]");
+    const ref = touchDragRef.current;
+    if (!ref) return;
     const touchY = e.touches[0].clientY;
+    if (!ref.dragActivated) {
+      const dy = Math.abs(touchY - ref.startY);
+      if (dy > 10) {
+        if (ref.longPressTimer) {
+          clearTimeout(ref.longPressTimer);
+          ref.longPressTimer = null;
+        }
+      }
+      return;
+    }
+    ref.currentY = touchY;
+    const cardEls = document.querySelectorAll("[data-exercise-card]");
     let overIdx: number | null = null;
     cardEls.forEach((el, i) => {
       const rect = el.getBoundingClientRect();
@@ -288,13 +316,18 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   };
   const handleTouchEnd = () => {
     const ref = touchDragRef.current;
-    if (ref && touchDragOverIdx !== null && ref.idx !== touchDragOverIdx && selectedDay) {
-      const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
-      const next = [...saved];
-      const [moved] = next.splice(ref.idx, 1);
-      next.splice(touchDragOverIdx, 0, moved);
-      setExerciseOrder(profile, selectedDay.id, next);
-      setReorderKey((k) => k + 1);
+    if (ref) {
+      if (ref.longPressTimer) {
+        clearTimeout(ref.longPressTimer);
+      }
+      if (ref.dragActivated && touchDragOverIdx !== null && ref.idx !== touchDragOverIdx && selectedDay) {
+        const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
+        const next = [...saved];
+        const [moved] = next.splice(ref.idx, 1);
+        next.splice(touchDragOverIdx, 0, moved);
+        setExerciseOrder(profile, selectedDay.id, next);
+        setReorderKey((k) => k + 1);
+      }
     }
     touchDragRef.current = null;
     setDragIdx(null);
@@ -664,7 +697,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                   onTouchStart={(e) => handleTouchStart(idx, e)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
-                  className={`rounded-2xl p-3 flex items-center gap-3 border transition-all touch-none select-none ${
+                  className={`rounded-2xl p-3 flex items-center gap-3 border transition-all select-none ${
                     ((dragOverIdx === idx && dragIdx !== idx) || (touchDragOverIdx === idx && dragIdx !== idx))
                       ? "border-pink-400/60 shadow-lg scale-[1.02]"
                       : isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
@@ -698,7 +731,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <p className={`text-sm font-semibold leading-tight truncate ${isNameCustomized(idx, originalName) ? "text-base" : ""} ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>
+                      <p className={`leading-tight truncate ${isNameCustomized(idx, originalName) ? "text-lg font-black" : "text-sm font-semibold"} ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>
                         {displayName}
                       </p>
                       <button
@@ -708,7 +741,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                         <Pencil size={11} className={isDark ? "text-zinc-500" : "text-zinc-400"} />
                       </button>
                     </div>
-                    {exercise.notes && (
+                    {exercise.notes && !isNameCustomized(idx, originalName) && (
                       <p className={`text-[10px] mt-0.5 truncate ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{exercise.notes}</p>
                     )}
                   </div>
@@ -802,6 +835,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         {/* ── Rename Modal ──────────────────────────────────────── */}
         {renameTarget && (() => {
           const isDirty = renameModalInput !== renameTarget.displayName;
+          const hasCustomName = temporaryNames[renameTarget.idx] !== undefined || getPermanentRename(profile, renameTarget.originalName) !== null;
           return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
@@ -842,9 +876,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                   }`}>
                   Cambio Permanente
                 </button>
-                <button onClick={revertRename} disabled={!isDirty}
+                <button onClick={revertRename} disabled={!isDirty && !hasCustomName}
                   className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                    !isDirty
+                    !isDirty && !hasCustomName
                       ? "opacity-40 cursor-not-allowed"
                       : isDark
                         ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
@@ -1000,9 +1034,13 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         <div className={`relative mx-4 mt-4 rounded-3xl overflow-hidden ${isDark ? "bg-zinc-900" : "bg-zinc-100 border border-zinc-200"}`} style={{ height: "200px" }}>
           {imgSrc ? (
             <img src={imgSrc} alt={displayName} className="w-full h-full object-contain p-4" />
+          ) : nameCustomized ? (
+            <div className="w-full h-full flex items-center justify-center p-6">
+              <span className={`text-2xl font-black text-center leading-tight ${isDark ? "text-zinc-100" : "text-zinc-800"}`}>{displayName}</span>
+            </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-zinc-600">
-              <span className="text-5xl">{nameCustomized ? "✏️" : "💪"}</span>
+              <span className="text-5xl">💪</span>
             </div>
           )}
         </div>
@@ -1197,6 +1235,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       {/* ── Rename Modal (Phase 3) ────────────────────────────── */}
       {renameTarget && (() => {
         const isDirty = renameModalInput !== renameTarget.displayName;
+        const hasCustomName = temporaryNames[renameTarget.idx] !== undefined || getPermanentRename(profile, renameTarget.originalName) !== null;
         return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
@@ -1237,9 +1276,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                 }`}>
                 Cambio Permanente
               </button>
-              <button onClick={revertRename} disabled={!isDirty}
+              <button onClick={revertRename} disabled={!isDirty && !hasCustomName}
                 className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                  !isDirty
+                  !isDirty && !hasCustomName
                     ? "opacity-40 cursor-not-allowed"
                     : isDark
                       ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
