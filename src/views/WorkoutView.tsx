@@ -330,6 +330,54 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             })}
           </div>
         </div>
+
+        {/* ── Repeat Routine Warning Modal ───────────────────── */}
+        {repeatModalDayId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+              <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
+                Ya completaste una rutina hoy
+              </h2>
+              <p className={`text-xs font-mono text-center mb-5 ${textMuted}`}>
+                ¿Deseas repetir de todas formas o prefieres gestionar tus registros?
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    const id = repeatModalDayId;
+                    setRepeatModalDayId(null);
+                    setSelectedDayId(id);
+                    setPhase("prepare");
+                  }}
+                  className="w-full py-4 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Flame size={16} /> {repeatIsSameDay ? "Repetir Rutina" : "Empezar Nueva Rutina"}
+                </button>
+                <button
+                  onClick={() => {
+                    setRepeatModalDayId(null);
+                    onNavigateToTab?.("analytics");
+                  }}
+                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                    isDark
+                      ? "bg-zinc-800 text-zinc-300 border-zinc-700"
+                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                  }`}
+                >
+                  <BarChart3 size={16} /> Ir a Analíticas
+                </button>
+              </div>
+              <button
+                onClick={() => setRepeatModalDayId(null)}
+                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
+                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+                }`}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -512,53 +560,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         )}
 
-        {/* ── Repeat Routine Warning Modal ───────────────────── */}
-        {repeatModalDayId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
-              <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
-                Ya completaste una rutina hoy
-              </h2>
-              <p className={`text-xs font-mono text-center mb-5 ${textMuted}`}>
-                ¿Deseas repetir de todas formas o prefieres gestionar tus registros?
-              </p>
-              <div className="space-y-3">
-                <button
-                  onClick={() => {
-                    const id = repeatModalDayId;
-                    setRepeatModalDayId(null);
-                    setSelectedDayId(id);
-                    setPhase("prepare");
-                  }}
-                  className="w-full py-4 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md"
-                >
-                  <Flame size={16} /> {repeatIsSameDay ? "Repetir Rutina" : "Empezar Nueva Rutina"}
-                </button>
-                <button
-                  onClick={() => {
-                    setRepeatModalDayId(null);
-                    onNavigateToTab?.("analytics");
-                  }}
-                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                    isDark
-                      ? "bg-zinc-800 text-zinc-300 border-zinc-700"
-                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
-                  }`}
-                >
-                  <BarChart3 size={16} /> Ir a Analíticas
-                </button>
-              </div>
-              <button
-                onClick={() => setRepeatModalDayId(null)}
-                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
-                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
-                }`}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
