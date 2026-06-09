@@ -11,6 +11,10 @@ export interface ExerciseLog {
   warmupWeight: string;
   isCompleted: boolean;
   unit: "kg" | "lbs";
+  set3Reps?: string;
+  set4Reps?: string;
+  set5Weight?: string;
+  set5Reps?: string;
 }
 
 export interface DaySession {
@@ -60,6 +64,11 @@ export function getSessions(profile: ProfileId): DaySession[] {
 
 export function getSessionByDate(profile: ProfileId, date: string): DaySession | undefined {
   return read(profile).sessions.find((s) => s.date === date);
+}
+
+export function hasCompletedRoutineToday(profile: ProfileId, dayId: string): boolean {
+  const today = new Date().toLocaleDateString("en-CA");
+  return read(profile).sessions.some((s) => s.date === today && s.dayId === dayId);
 }
 
 export function updateSessionExercises(

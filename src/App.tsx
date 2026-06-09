@@ -88,6 +88,7 @@ export default function App() {
               theme={theme}
               timerMode={timerMode}
               onTimerModeChange={setTimerMode}
+              onNavigateToTab={handleTabChange}
             />
           ) : tab === "analytics" ? (
             <AnalyticsView

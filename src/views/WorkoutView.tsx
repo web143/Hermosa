@@ -2,20 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { motion, type Variants } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
-  ChevronRight, Plus, Minus, Sparkles, Info, Flame,
+  ChevronRight, Plus, Minus, Sparkles, Info, Flame, BarChart3,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
-import { addSession } from "@/db/profileStore";
+import { addSession, hasCompletedRoutineToday } from "@/db/profileStore";
 import type { ExerciseLog } from "@/db/profileStore";
 import type { TimerMode, Theme } from "@/App";
+import type { TabId } from "@/components/BottomNav";
 
 interface WorkoutViewProps {
   profile: ProfileId;
   theme: Theme;
   timerMode: TimerMode;
   onTimerModeChange: (mode: TimerMode) => void;
+  onNavigateToTab?: (tab: TabId) => void;
 }
 
 interface ExerciseExecutionState {
@@ -75,7 +77,7 @@ function initExerciseState(): ExerciseExecutionState {
   };
 }
 
-export default function WorkoutView({ profile, theme, timerMode, onTimerModeChange }: WorkoutViewProps) {
+export default function WorkoutView({ profile, theme, timerMode, onTimerModeChange, onNavigateToTab }: WorkoutViewProps) {
   const isDark = theme === "dark";
   const isElla = profile === "ella";
   const routine = getRoutineForProfile(profile);
@@ -85,6 +87,8 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [exerciseStates, setExerciseStates] = useState<ExerciseExecutionState[]>([]);
   const [validationToast, setValidationToast] = useState<string | null>(null);
+  const [repeatModalDayId, setRepeatModalDayId] = useState<string | null>(null);
+  const [modeModalOpen, setModeModalOpen] = useState(false);
 
   const selectedDay = routine.find((d) => d.id === selectedDayId) || null;
 
@@ -96,6 +100,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   }, [validationToast]);
 
   const goToPrepare = (dayId: string) => {
+    if (hasCompletedRoutineToday(profile, dayId)) {
+      setRepeatModalDayId(dayId);
+      return;
+    }
     setSelectedDayId(dayId);
     setPhase("prepare");
   };
@@ -105,9 +113,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     setPhase("select");
   };
 
-  const startWorkout = () => {
+  const beginWorkout = () => {
     const day = selectedDay;
     if (!day) return;
+    setModeModalOpen(false);
     setCurrentExIdx(0);
     setExerciseStates(day.exercises.map(() => initExerciseState()));
     setPhase("execution");
@@ -130,6 +139,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           warmupWeight: st.warmupWeight,
           isCompleted: st.completed,
           unit: "kg" as const,
+          set3Reps: st.set3Reps || undefined,
+          set4Reps: st.set4Reps || undefined,
+          set5Weight: st.set5Enabled ? (st.set5Weight || undefined) : undefined,
+          set5Reps: st.set5Enabled ? (st.set5Reps || undefined) : undefined,
         };
       });
 
@@ -264,7 +277,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
         {/* Scrollable content */}
         <div className="relative z-10 flex-1 overflow-y-auto max-w-2xl mx-auto w-full px-4 pt-4 pb-36">
-          {/* Header */}
+          {/* Header — only back button, timer picker moved to modal */}
           <div className="flex items-center justify-between mb-6">
             <button onClick={backToSelect}
               className={`w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-md border transition-all active:scale-90 ${
@@ -274,28 +287,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               }`}>
               <ArrowLeft size={18} />
             </button>
-
-            {/* Timer mode pill */}
-            <div className={`flex items-center backdrop-blur-md border rounded-2xl p-1 gap-1 ${
-              isDark ? "bg-zinc-900/70 border-zinc-800/60" : "bg-white/80 border-zinc-200 shadow-sm"
-            }`}>
-              <button onClick={() => onTimerModeChange("normal")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  timerMode === "normal"
-                    ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
-                    : isDark ? "text-zinc-400" : "text-zinc-500"
-                }`}>
-                <Clock size={11} /> Normal
-              </button>
-              <button onClick={() => onTimerModeChange("fast")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  timerMode === "fast"
-                    ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
-                    : isDark ? "text-zinc-400" : "text-zinc-500"
-                }`}>
-                <Zap size={11} /> Rápido
-              </button>
-            </div>
           </div>
 
           {/* Day info */}
@@ -380,12 +371,12 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         </div>
 
-        {/* Fixed Start CTA — above bottom nav */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 64px)" }}>
-          <div className="max-w-2xl mx-auto">
+        {/* Fixed Start CTA — pointer-events-none on wrapper so nav stays clickable */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 64px)" }}>
+          <div className="max-w-2xl mx-auto pointer-events-auto">
             <motion.button
               id="start-workout-btn"
-              onClick={startWorkout}
+              onClick={() => setModeModalOpen(true)}
               whileTap={{ scale: 0.95 }}
               className={`w-full font-black text-base tracking-wide py-4 rounded-2xl shadow-2xl flex items-center justify-center gap-2 ${
                 isDark
@@ -396,6 +387,98 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             </motion.button>
           </div>
         </div>
+
+        {/* ── Mode Selection Modal ──────────────────────────── */}
+        {modeModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+              <h2 className={`text-lg font-black tracking-tight text-center mb-1 ${textPrimary}`}>
+                ¿Cómo quieres entrenar hoy?
+              </h2>
+              <p className={`text-xs font-mono text-center mb-5 ${textMuted}`}>
+                Selecciona el tiempo de descanso entre series
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => { onTimerModeChange("normal"); beginWorkout(); }}
+                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                    isDark
+                      ? "bg-white text-zinc-950 border-zinc-600 shadow-md"
+                      : "bg-zinc-900 text-white border-zinc-300 shadow-md"
+                  }`}
+                >
+                  <Clock size={16} /> Modo Normal · 3 min descanso
+                </button>
+                <button
+                  onClick={() => { onTimerModeChange("fast"); beginWorkout(); }}
+                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                    isDark
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      : "bg-amber-50 text-amber-600 border-amber-200"
+                  }`}
+                >
+                  <Zap size={16} /> Modo Rápido · 2 min descanso
+                </button>
+              </div>
+              <button
+                onClick={() => setModeModalOpen(false)}
+                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
+                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+                }`}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Repeat Routine Warning Modal ───────────────────── */}
+        {repeatModalDayId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+              <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
+                Ya completaste esta rutina hoy
+              </h2>
+              <p className={`text-xs font-mono text-center mb-5 ${textMuted}`}>
+                ¿Deseas repetirla de todas formas o prefieres gestionar tus registros?
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    const id = repeatModalDayId;
+                    setRepeatModalDayId(null);
+                    setSelectedDayId(id);
+                    setPhase("prepare");
+                  }}
+                  className="w-full py-4 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Flame size={16} /> Repetir Rutina
+                </button>
+                <button
+                  onClick={() => {
+                    setRepeatModalDayId(null);
+                    onNavigateToTab?.("analytics");
+                  }}
+                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                    isDark
+                      ? "bg-zinc-800 text-zinc-300 border-zinc-700"
+                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                  }`}
+                >
+                  <BarChart3 size={16} /> Ir a Analíticas
+                </button>
+              </div>
+              <button
+                onClick={() => setRepeatModalDayId(null)}
+                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
+                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+                }`}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -421,7 +504,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       return;
     }
     if (!canComplete) {
-      setValidationToast("Completa Top Set, BO1 y BO2 con peso y reps > 0");
+      setValidationToast("Completa Top Set 1, Set 2 y Set 3 con peso y reps > 0");
       return;
     }
     updateExState(currentExIdx, { completed: true });
@@ -567,10 +650,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             </div>
           )}
 
-          {/* Top Set */}
+          {/* Top Set 1 */}
           <div className={`px-5 py-4 border-b border-l-2 ${accentBg} ${accentBorder} ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
             <p className={`text-sm font-black mb-3 ${accentText} flex items-center gap-1.5`}>
-              Top Set <Sparkles size={13} className="animate-pulse" />
+              Top Set 1 <Sparkles size={13} className="animate-pulse" />
             </p>
             <WeightRepRow
               weight={currentState.topSetWeight} onWeightChange={(v) => updateExState(currentExIdx, { topSetWeight: v })}
@@ -585,9 +668,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             )}
           </div>
 
-          {/* Back-off 1 */}
+          {/* Set 2 */}
           <div className={`px-5 py-4 border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
-            <p className={`text-sm font-semibold mb-3 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Back-off 1</p>
+            <p className={`text-sm font-semibold mb-3 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Set 2</p>
             <WeightRepRow
               weight={currentState.set3Weight} onWeightChange={(v) => updateExState(currentExIdx, { set3Weight: v })}
               reps={currentState.set3Reps} onRepsChange={(v) => updateExState(currentExIdx, { set3Reps: v })}
@@ -595,9 +678,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             />
           </div>
 
-          {/* Back-off 2 */}
+          {/* Set 3 */}
           <div className={`px-5 py-4 border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
-            <p className={`text-sm font-semibold mb-3 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Back-off 2</p>
+            <p className={`text-sm font-semibold mb-3 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Set 3</p>
             <WeightRepRow
               weight={currentState.set4Weight} onWeightChange={(v) => updateExState(currentExIdx, { set4Weight: v })}
               reps={currentState.set4Reps} onRepsChange={(v) => updateExState(currentExIdx, { set4Reps: v })}
@@ -605,10 +688,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             />
           </div>
 
-          {/* Back-off 3 (optional) */}
+          {/* Set 4 (Opcional) */}
           <div className={`px-5 py-4 ${currentState.set5Enabled ? "border-b" : ""} ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
             <div className="flex items-center justify-between mb-3">
-              <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Back-off 3</p>
+              <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Set 4 (Opcional)</p>
               <button onClick={() => updateExState(currentExIdx, { set5Enabled: !currentState.set5Enabled })}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-colors ${
                   currentState.set5Enabled
@@ -654,8 +737,8 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       </div>
 
       {/* ── Bottom Nav: Prev / Complete / Next ──────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 72px)" }}>
-        <div className="max-w-2xl mx-auto">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 72px)" }}>
+        <div className="max-w-2xl mx-auto pointer-events-auto">
           <div className="flex items-center gap-2">
             {/* Prev */}
             <button id="prev-exercise-btn" disabled={isFirstExercise}
