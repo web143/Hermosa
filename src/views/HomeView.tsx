@@ -1,7 +1,8 @@
+import { useState, useEffect, useMemo } from "react";
 import { Flame, Trophy, Quote } from "lucide-react";
 import { getRoutineForProfile } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
-import { getTotalSessions, getCurrentStreak } from "@/db/profileStore";
+import { getTotalSessions, getCurrentStreak, getSessions } from "@/db/profileStore";
 
 const VERSES = [
   { text: "Ya te lo he ordenado: ¡Sé fuerte y valiente! No tengas miedo ni te desanimes, porque el Señor tu Dios te acompañará dondequiera que vayas.", ref: "Josué 1:9" },
@@ -46,14 +47,37 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
   const isElla = profile === "ella";
   const routine = getRoutineForProfile(profile);
   const profileName = isElla ? "HERMOSA" : "HANIEL";
+
+  // Reactively refresh on workout completion
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const handler = () => setRefreshKey((k) => k + 1);
+    window.addEventListener("gym_db_update", handler);
+    return () => window.removeEventListener("gym_db_update", handler);
+  }, []);
+
   const totalSessions = getTotalSessions(profile);
   const currentStreak = getCurrentStreak(profile);
-  const nextDay = routine[0];
+
+  // Dynamic "next workout" — compute from last completed session
+  const lastSessions = useMemo(() => getSessions(profile), [profile, refreshKey]);
+  const lastSession = lastSessions.length > 0
+    ? lastSessions.reduce((a, b) => (a.timestamp > b.timestamp ? a : b))
+    : null;
+  const lastDayIdx = lastSession
+    ? routine.findIndex((d) => d.id === lastSession.dayId)
+    : -1;
+  const nextDay = lastDayIdx >= 0 && lastDayIdx < routine.length - 1
+    ? routine[lastDayIdx + 1]
+    : routine[0];
 
   const verseIndex = (new Date().getDate() - 1) % VERSES.length;
   const dailyVerse = VERSES[verseIndex];
 
-  const bg = isDark ? "bg-zinc-950" : "bg-gradient-to-b from-pink-100 via-pink-50/30 to-white";
+  // ── Dark-mode-aware backgrounds ──────────────────────────────
+  const bg = isDark
+    ? "bg-gradient-to-b from-pink-950/40 via-zinc-950 to-zinc-950"
+    : "bg-gradient-to-b from-pink-100 via-pink-50/30 to-white";
   const textPrimary = isDark ? "text-zinc-100" : "text-zinc-900";
   const textSecondary = isDark ? "text-zinc-400" : "text-zinc-500";
   const textMuted = isDark ? "text-zinc-600" : "text-zinc-400";
@@ -131,13 +155,15 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
 
         {/* ── Premium Daily Bible Verse ─────────────────────────── */}
         <div className={`border rounded-2xl px-5 py-9 min-h-[160px] ${cardBg} ${
-          isDark ? "" : "border-pink-300/40 shadow-[inset_0_0_20px_rgba(236,72,153,0.25)]"
+          isDark
+            ? "border-pink-500/20 shadow-[inset_0_0_20px_rgba(236,72,153,0.15)]"
+            : "border-pink-300/40 shadow-[inset_0_0_20px_rgba(236,72,153,0.25)]"
         }`}>
           <div className="flex items-start gap-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
-              isDark ? "bg-zinc-800" : "bg-zinc-100"
-            }`}>
-              <Quote size={16} className={isDark ? "text-zinc-400" : "text-zinc-500"} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                isDark ? "bg-pink-500/10" : "bg-zinc-100"
+              }`}>
+                <Quote size={16} className={isDark ? "text-pink-400" : "text-zinc-500"} />
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-base font-semibold leading-relaxed ${textPrimary}`}>
