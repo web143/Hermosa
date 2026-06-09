@@ -40,6 +40,17 @@ interface ExerciseExecutionState {
 
 type Phase = "select" | "prepare" | "execution";
 
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (locked) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => { document.body.style.overflow = "unset"; };
+  }, [locked]);
+}
+
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
@@ -115,6 +126,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [reorderKey, setReorderKey] = useState(0);
+  // Touch drag state
+  const touchDragRef = useRef<{ idx: number; startY: number; currentY: number } | null>(null);
+  const [touchDragOverIdx, setTouchDragOverIdx] = useState<number | null>(null);
 
   // ── Rename ──────────────────────────────────────────────────
   const [renameTarget, setRenameTarget] = useState<{
@@ -199,6 +213,8 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     }
   }, [validationToast]);
 
+  useBodyScrollLock(!!repeatModalDayId || modeModalOpen || !!renameTarget || !!centerError);
+
   const goToPrepare = (dayId: string) => {
     const todaySession = getTodaySession(profile);
     if (todaySession) {
@@ -235,7 +251,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     }
   };
 
-  // ── Drag handlers ───────────────────────────────────────────
+  // ── Drag handlers (mouse + touch) ───────────────────────────
   const handleDragStart = (idx: number) => { setDragIdx(idx); };
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
@@ -252,6 +268,37 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     }
     setDragIdx(null);
     setDragOverIdx(null);
+  };
+
+  const handleTouchStart = (idx: number, e: React.TouchEvent) => {
+    touchDragRef.current = { idx, startY: e.touches[0].clientY, currentY: e.touches[0].clientY };
+    setDragIdx(idx);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragRef.current) return;
+    touchDragRef.current.currentY = e.touches[0].clientY;
+    const cardEls = document.querySelectorAll("[data-exercise-card]");
+    const touchY = e.touches[0].clientY;
+    let overIdx: number | null = null;
+    cardEls.forEach((el, i) => {
+      const rect = el.getBoundingClientRect();
+      if (touchY >= rect.top && touchY <= rect.bottom) overIdx = i;
+    });
+    setTouchDragOverIdx(overIdx);
+  };
+  const handleTouchEnd = () => {
+    const ref = touchDragRef.current;
+    if (ref && touchDragOverIdx !== null && ref.idx !== touchDragOverIdx && selectedDay) {
+      const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
+      const next = [...saved];
+      const [moved] = next.splice(ref.idx, 1);
+      next.splice(touchDragOverIdx, 0, moved);
+      setExerciseOrder(profile, selectedDay.id, next);
+      setReorderKey((k) => k + 1);
+    }
+    touchDragRef.current = null;
+    setDragIdx(null);
+    setTouchDragOverIdx(null);
   };
 
   // ── Rename handlers ─────────────────────────────────────────
@@ -609,12 +656,16 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               return (
                 <div
                   key={idx}
+                  data-exercise-card
                   draggable
                   onDragStart={() => handleDragStart(idx)}
                   onDragOver={(e) => handleDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
-                  className={`rounded-2xl p-3 flex items-center gap-3 border transition-all ${
-                    dragOverIdx === idx && dragIdx !== idx
+                  onTouchStart={(e) => handleTouchStart(idx, e)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  className={`rounded-2xl p-3 flex items-center gap-3 border transition-all touch-none select-none ${
+                    ((dragOverIdx === idx && dragIdx !== idx) || (touchDragOverIdx === idx && dragIdx !== idx))
                       ? "border-pink-400/60 shadow-lg scale-[1.02]"
                       : isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
                   } ${dragIdx === idx ? "opacity-50" : ""}`}
@@ -749,7 +800,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         )}
 
         {/* ── Rename Modal ──────────────────────────────────────── */}
-        {renameTarget && (
+        {renameTarget && (() => {
+          const isDirty = renameModalInput !== renameTarget.displayName;
+          return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
               <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
@@ -771,37 +824,48 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                 }`}
               />
               <div className="space-y-2">
-                <button onClick={applyRenameTemp}
+                <button onClick={applyRenameTemp} disabled={!isDirty}
                   className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                    isDark
-                      ? "bg-zinc-800 text-zinc-200 border-zinc-700"
-                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                    !isDirty
+                      ? "opacity-40 cursor-not-allowed"
+                      : isDark
+                        ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                        : "bg-zinc-100 text-zinc-700 border-zinc-200"
                   }`}>
                   Cambio Temporal (solo hoy)
                 </button>
-                <button onClick={applyRenamePerm}
-                  className="w-full py-3 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95">
+                <button onClick={applyRenamePerm} disabled={!isDirty}
+                  className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                    !isDirty
+                      ? "opacity-40 cursor-not-allowed bg-pink-500/20 text-pink-300 border-pink-400/30"
+                      : "bg-pink-500 text-white border-pink-400"
+                  }`}>
                   Cambio Permanente
                 </button>
-                <button onClick={revertRename}
+                <button onClick={revertRename} disabled={!isDirty}
                   className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                    isDark
-                      ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
-                      : "border-red-200 text-red-500 hover:bg-red-50"
+                    !isDirty
+                      ? "opacity-40 cursor-not-allowed"
+                      : isDark
+                        ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
+                        : "border-red-200 text-red-500 hover:bg-red-50"
                   }`}>
                   Revertir a nombre original
                 </button>
               </div>
               <button
                 onClick={() => setRenameTarget(null)}
-                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
-                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+                className={`w-full mt-4 py-4 rounded-2xl font-bold text-base tracking-wide transition-colors border-2 ${
+                  isDark
+                    ? "bg-zinc-800 text-zinc-200 border-zinc-600 hover:bg-zinc-700"
+                    : "bg-zinc-100 text-zinc-800 border-zinc-300 hover:bg-zinc-200"
                 }`}>
                 Cancelar
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     );
   }
@@ -1131,7 +1195,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       </div>
 
       {/* ── Rename Modal (Phase 3) ────────────────────────────── */}
-      {renameTarget && (
+      {renameTarget && (() => {
+        const isDirty = renameModalInput !== renameTarget.displayName;
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
             <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
@@ -1153,37 +1219,48 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               }`}
             />
             <div className="space-y-2">
-              <button onClick={applyRenameTemp}
+              <button onClick={applyRenameTemp} disabled={!isDirty}
                 className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                  isDark
-                    ? "bg-zinc-800 text-zinc-200 border-zinc-700"
-                    : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                  !isDirty
+                    ? "opacity-40 cursor-not-allowed"
+                    : isDark
+                      ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
                 }`}>
                 Cambio Temporal (solo hoy)
               </button>
-              <button onClick={applyRenamePerm}
-                className="w-full py-3 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95">
+              <button onClick={applyRenamePerm} disabled={!isDirty}
+                className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                  !isDirty
+                    ? "opacity-40 cursor-not-allowed bg-pink-500/20 text-pink-300 border-pink-400/30"
+                    : "bg-pink-500 text-white border-pink-400"
+                }`}>
                 Cambio Permanente
               </button>
-              <button onClick={revertRename}
+              <button onClick={revertRename} disabled={!isDirty}
                 className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
-                  isDark
-                    ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
-                    : "border-red-200 text-red-500 hover:bg-red-50"
+                  !isDirty
+                    ? "opacity-40 cursor-not-allowed"
+                    : isDark
+                      ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
+                      : "border-red-200 text-red-500 hover:bg-red-50"
                 }`}>
                 Revertir a nombre original
               </button>
             </div>
             <button
               onClick={() => setRenameTarget(null)}
-              className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
-                isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+              className={`w-full mt-4 py-4 rounded-2xl font-bold text-base tracking-wide transition-colors border-2 ${
+                isDark
+                  ? "bg-zinc-800 text-zinc-200 border-zinc-600 hover:bg-zinc-700"
+                  : "bg-zinc-100 text-zinc-800 border-zinc-300 hover:bg-zinc-200"
               }`}>
               Cancelar
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
