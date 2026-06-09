@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, type Variants } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
   ChevronRight, Plus, Minus, Sparkles, Info, Flame, BarChart3, Play,
+  GripVertical, Pencil,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
@@ -47,11 +48,6 @@ const cardVariants: Variants = {
   }),
 };
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, x: -20 },
-  visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 260, damping: 24 } },
-};
-
 function evaluateReps(reps: number): { message: string; color: string; icon: string } | null {
   if (reps <= 0) return null;
   if (reps > 12) return { message: "Peso muy ligero. ¡Sube el peso de inmediato!", color: "text-blue-400", icon: "⚡" };
@@ -78,6 +74,29 @@ function initExerciseState(): ExerciseExecutionState {
   };
 }
 
+function getPermanentRename(profile: ProfileId, originalName: string): string | null {
+  try { return localStorage.getItem(`gym_perm_rename_${profile}_${originalName}`); } catch { return null; }
+}
+
+function setPermanentRename(profile: ProfileId, originalName: string, newName: string): void {
+  localStorage.setItem(`gym_perm_rename_${profile}_${originalName}`, newName);
+}
+
+function removePermanentRename(profile: ProfileId, originalName: string): void {
+  localStorage.removeItem(`gym_perm_rename_${profile}_${originalName}`);
+}
+
+function getExerciseOrder(profile: ProfileId, dayId: string): number[] | null {
+  try {
+    const raw = localStorage.getItem(`gym_ex_order_${profile}_${dayId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setExerciseOrder(profile: ProfileId, dayId: string, order: number[]): void {
+  localStorage.setItem(`gym_ex_order_${profile}_${dayId}`, JSON.stringify(order));
+}
+
 export default function WorkoutView({ profile, theme, timerMode, onTimerModeChange, onNavigateToTab, unit }: WorkoutViewProps) {
   const isDark = theme === "dark";
   const isElla = profile === "ella";
@@ -92,6 +111,24 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [repeatIsSameDay, setRepeatIsSameDay] = useState(false);
   const [modeModalOpen, setModeModalOpen] = useState(false);
 
+  // ── Drag-and-Drop ───────────────────────────────────────────
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [reorderKey, setReorderKey] = useState(0);
+
+  // ── Rename ──────────────────────────────────────────────────
+  const [renameTarget, setRenameTarget] = useState<{
+    idx: number; originalName: string; displayName: string;
+  } | null>(null);
+  const [renameModalInput, setRenameModalInput] = useState("");
+  const [temporaryNames, setTemporaryNames] = useState<Record<number, string>>({});
+
+  // ── Bidirectional Nav ───────────────────────────────────────
+  const [hasStartedWorkout, setHasStartedWorkout] = useState(false);
+
+  // ── Centered Error ──────────────────────────────────────────
+  const [centerError, setCenterError] = useState<string | null>(null);
+
   // ── Active Workout Persistence ──────────────────────────────
   const SESSION_KEY = `gym_workout_session_${profile}`;
   const [savedSession, setSavedSession] = useState<{
@@ -100,7 +137,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     exerciseStates: ExerciseExecutionState[];
   } | null>(null);
 
-  // Restore saved session on mount
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return;
@@ -112,7 +148,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     } catch { /* ignore */ }
   }, [SESSION_KEY]);
 
-  // Persist execution state on every change
   useEffect(() => {
     if (phase === "execution") {
       localStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -123,12 +158,39 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     }
   }, [phase, currentExIdx, exerciseStates, selectedDayId, SESSION_KEY]);
 
+  useEffect(() => {
+    if (centerError) {
+      const t = setTimeout(() => setCenterError(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [centerError]);
+
   const clearSavedSession = () => {
     localStorage.removeItem(SESSION_KEY);
     setSavedSession(null);
   };
 
   const selectedDay = routine.find((d) => d.id === selectedDayId) || null;
+
+  // ── Re-ordered exercises (from drag) ────────────────────────
+  const orderedExercises = useMemo(() => {
+    if (!selectedDay) return [];
+    const saved = getExerciseOrder(profile, selectedDay.id);
+    if (!saved) return selectedDay.exercises;
+    return saved.map((i) => selectedDay.exercises[i]).filter(Boolean);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, reorderKey]);
+
+  // ── Display name helper ─────────────────────────────────────
+  const getDisplayName = (idx: number, originalName: string): string => {
+    return temporaryNames[idx] || getPermanentRename(profile, originalName) || originalName;
+  };
+
+  const isNameCustomized = (idx: number, originalName: string): boolean => {
+    return (temporaryNames[idx] || getPermanentRename(profile, originalName)) !== undefined;
+  };
+
+  const isCalfSeated = (name: string): boolean => name.includes("Pantorrilla Sentado");
 
   useEffect(() => {
     if (validationToast) {
@@ -152,6 +214,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     clearSavedSession();
     setSelectedDayId(null);
     setPhase("select");
+    setHasStartedWorkout(false);
   };
 
   const beginWorkout = () => {
@@ -161,16 +224,94 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     setCurrentExIdx(0);
     setExerciseStates(day.exercises.map(() => initExerciseState()));
     setPhase("execution");
+    setHasStartedWorkout(true);
   };
 
+  const continueWorkoutFromPrepare = () => {
+    if (exerciseStates.length > 0) {
+      setPhase("execution");
+    } else {
+      beginWorkout();
+    }
+  };
+
+  // ── Drag handlers ───────────────────────────────────────────
+  const handleDragStart = (idx: number) => { setDragIdx(idx); };
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+  const handleDragEnd = () => {
+    if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx && selectedDay) {
+      const saved = getExerciseOrder(profile, selectedDay.id) || selectedDay.exercises.map((_, i) => i);
+      const next = [...saved];
+      const [moved] = next.splice(dragIdx, 1);
+      next.splice(dragOverIdx, 0, moved);
+      setExerciseOrder(profile, selectedDay.id, next);
+      setReorderKey((k) => k + 1);
+    }
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  // ── Rename handlers ─────────────────────────────────────────
+  const openRenameModal = (idx: number, originalName: string) => {
+    const current = getDisplayName(idx, originalName);
+    setRenameTarget({ idx, originalName, displayName: current });
+    setRenameModalInput(current);
+  };
+
+  const applyRenameTemp = () => {
+    if (!renameTarget || !renameModalInput.trim()) return;
+    setTemporaryNames((prev) => ({ ...prev, [renameTarget.idx]: renameModalInput.trim() }));
+    setRenameTarget(null);
+  };
+
+  const applyRenamePerm = () => {
+    if (!renameTarget || !renameModalInput.trim()) return;
+    setPermanentRename(profile, renameTarget.originalName, renameModalInput.trim());
+    setTemporaryNames((prev) => {
+      const next = { ...prev };
+      delete next[renameTarget.idx];
+      return next;
+    });
+    setReorderKey((k) => k + 1);
+    setRenameTarget(null);
+  };
+
+  const revertRename = () => {
+    if (!renameTarget) return;
+    removePermanentRename(profile, renameTarget.originalName);
+    setTemporaryNames((prev) => {
+      const next = { ...prev };
+      delete next[renameTarget.idx];
+      return next;
+    });
+    setReorderKey((k) => k + 1);
+    setRenameTarget(null);
+  };
+
+  // ── Finish Workout ──────────────────────────────────────────
   const finishWorkout = async () => {
     if (!selectedDay) return;
+    const mandatory = selectedDay.exercises.filter((ex) => !isCalfSeated(ex.name));
+    const allMandatoryComplete = mandatory.every((_, idx) => {
+      const realIdx = selectedDay.exercises.indexOf(mandatory[idx]);
+      const st = exerciseStates[realIdx];
+      const topDone = parseFloat(st.topSetWeight) > 0 && parseInt(st.topSetReps) > 0;
+      const set2Done = parseFloat(st.set3Weight) > 0 && parseInt(st.set3Reps) > 0;
+      return topDone && set2Done;
+    });
+    if (!allMandatoryComplete) {
+      setCenterError("Completa al menos Top Set 1 y Set 2 en todos los ejercicios obligatorios");
+      return;
+    }
     const today = new Date().toLocaleDateString("en-CA");
     const completedExercises: ExerciseLog[] = selectedDay.exercises
       .map((ex, idx) => {
         const st = exerciseStates[idx];
         return {
-          exerciseName: ex.name,
+          exerciseName: getDisplayName(idx, ex.name),
           set1Weight: st.set1Weight,
           topSetWeight: st.topSetWeight,
           topSetReps: st.topSetReps,
@@ -198,6 +339,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
     window.dispatchEvent(new Event("gym_db_update"));
     clearSavedSession();
+    setHasStartedWorkout(false);
     setPhase("select");
     setSelectedDayId(null);
   };
@@ -210,7 +352,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     });
   };
 
-  const currentEx = selectedDay?.exercises[currentExIdx] ?? null;
+  const currentEx = orderedExercises[currentExIdx] ?? null;
   const currentState = exerciseStates[currentExIdx] ?? null;
 
   const bg = isDark ? "bg-zinc-950" : "bg-zinc-50";
@@ -228,7 +370,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <h1 className={`text-3xl font-black tracking-tighter ${textPrimary}`}>Elige tu entrenamiento</h1>
           </div>
 
-          {/* Continue Active Routine */}
           {savedSession && (
             <motion.button
               initial={{ opacity: 0, scale: 0.95 }}
@@ -240,6 +381,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                 setSelectedDayId(saved.selectedDayId);
                 setCurrentExIdx(saved.currentExIdx);
                 setExerciseStates(saved.exerciseStates);
+                setHasStartedWorkout(true);
                 setPhase("execution");
               }}
               className="w-full text-left rounded-2xl overflow-hidden relative group shadow-lg"
@@ -384,9 +526,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
   // ───── PHASE 2: PREPARE ─────
   if (phase === "prepare" && selectedDay) {
+    const exercisesToRender = orderedExercises.length > 0 ? orderedExercises : selectedDay.exercises;
     return (
       <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
-        {/* Hero Background — position fixed so it doesn't interfere with scroll */}
+        {/* Hero Background */}
         <div className="fixed inset-0">
           {(() => {
             const heroBg = getImageSrc(selectedDay.heroBg);
@@ -405,7 +548,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
         {/* Scrollable content */}
         <div className="relative z-10 flex-1 overflow-y-auto max-w-2xl mx-auto w-full px-4 pt-4 pb-36">
-          {/* Header — only back button, timer picker moved to modal */}
+          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <button onClick={backToSelect}
               className={`w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-md border transition-all active:scale-90 ${
@@ -437,10 +580,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               {selectedDay.subtitle} · {selectedDay.duration}
             </p>
 
-            {/* Stats cards — inline, no backdrop-blur to ensure visibility */}
             <div className="flex gap-3 mt-4">
               {[
-                { label: "Ejercicios", value: selectedDay.exercises.length },
+                { label: "Ejercicios", value: exercisesToRender.length },
                 { label: "Descanso", value: timerMode === "normal" ? "3 min" : "2 min" },
                 { label: "Series", value: "3–4 c/u" },
               ].map(({ label, value }) => (
@@ -454,54 +596,100 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             </div>
           </div>
 
-          {/* Exercise List */}
-          <div className="space-y-3">
-            {selectedDay.exercises.map((exercise, idx) => {
+          {/* Exercise List (draggable) */}
+          <div className="space-y-2">
+            {exercisesToRender.map((exercise, idx) => {
+              const originalName = exercise.name;
+              const displayName = getDisplayName(idx, originalName);
               const imgSrc = getImageSrc(exercise.imageKey);
               const tagAccent = isElla
                 ? "bg-pink-500/10 text-pink-500 border-pink-500/20"
                 : "bg-amber-500/10 text-amber-500 border-amber-500/20";
+              const isOptional = isCalfSeated(originalName);
               return (
-                <motion.div key={idx} variants={itemVariants} initial="hidden" animate="visible"
-                  className={`rounded-2xl p-3 flex items-center gap-3 border ${
-                    isDark
-                      ? "bg-zinc-900/80 border-zinc-700/60"
-                      : "bg-white/90 border-zinc-200 shadow-sm"
-                  }`}>
-                  <div className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 ${isDark ? "bg-zinc-800" : "bg-zinc-100"}`}>
-                    {imgSrc
-                      ? <img src={imgSrc} alt={exercise.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-lg">💪</div>
-                    }
+                <div
+                  key={idx}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  className={`rounded-2xl p-3 flex items-center gap-3 border transition-all ${
+                    dragOverIdx === idx && dragIdx !== idx
+                      ? "border-pink-400/60 shadow-lg scale-[1.02]"
+                      : isDark ? "bg-zinc-900/80 border-zinc-700/60" : "bg-white/90 border-zinc-200 shadow-sm"
+                  } ${dragIdx === idx ? "opacity-50" : ""}`}
+                >
+                  {/* Drag handle */}
+                  <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded-lg hover:bg-zinc-700/30">
+                    <GripVertical size={16} className={isDark ? "text-zinc-600" : "text-zinc-400"} />
                   </div>
+
+                  {/* Image — hidden if name customized */}
+                  {!isNameCustomized(idx, originalName) ? (
+                    <div className={`w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 ${isDark ? "bg-zinc-800" : "bg-zinc-100"}`}>
+                      {imgSrc
+                        ? <img src={imgSrc} alt={displayName} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-base">💪</div>
+                      }
+                    </div>
+                  ) : null}
+
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       {exercise.isSuperset && (
                         <span className={`text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full border ${tagAccent}`}>⛓️ SS</span>
                       )}
                       {exercise.isDropset && (
                         <span className="text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">💥 DROP</span>
                       )}
+                      {isOptional && (
+                        <span className="text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">(Opcional)</span>
+                      )}
                     </div>
-                    <p className={`text-sm font-semibold leading-tight truncate ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>{exercise.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className={`text-sm font-semibold leading-tight truncate ${isNameCustomized(idx, originalName) ? "text-base" : ""} ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>
+                        {displayName}
+                      </p>
+                      <button
+                        onClick={(e) => { e.preventDefault(); openRenameModal(idx, originalName); }}
+                        className="p-1 rounded-lg hover:bg-zinc-700/30 transition-colors flex-shrink-0"
+                      >
+                        <Pencil size={11} className={isDark ? "text-zinc-500" : "text-zinc-400"} />
+                      </button>
+                    </div>
                     {exercise.notes && (
                       <p className={`text-[10px] mt-0.5 truncate ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{exercise.notes}</p>
                     )}
                   </div>
-                  <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded-full border ${
+                  <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded-full border flex-shrink-0 ${
                     isDark ? "bg-zinc-800/80 text-zinc-500 border-zinc-700" : "bg-zinc-100 text-zinc-400 border-zinc-200"
                   }`}>
                     {idx + 1}
                   </span>
-                </motion.div>
+                </div>
               );
             })}
           </div>
         </div>
 
-        {/* Fixed Start CTA — pointer-events-none on wrapper so nav stays clickable */}
+        {/* Fixed CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 64px)" }}>
-          <div className="max-w-2xl mx-auto pointer-events-auto">
+          <div className="max-w-2xl mx-auto pointer-events-auto space-y-2">
+            {hasStartedWorkout && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={continueWorkoutFromPrepare}
+                whileTap={{ scale: 0.95 }}
+                className={`w-full font-black text-sm tracking-wide py-3 rounded-2xl shadow-xl flex items-center justify-center gap-2 border ${
+                  isDark
+                    ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                    : "bg-white text-zinc-800 border-zinc-200"
+                }`}
+              >
+                <Play size={16} /> Continuar con la rutina
+              </motion.button>
+            )}
             <motion.button
               id="start-workout-btn"
               onClick={() => setModeModalOpen(true)}
@@ -511,12 +699,12 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                   ? "bg-white text-zinc-950 shadow-black/50"
                   : "bg-zinc-900 text-white shadow-zinc-900/30"
               }`}>
-              <Zap size={18} /> Iniciar Rutina
+              <Zap size={18} /> {hasStartedWorkout ? "Reiniciar Rutina" : "Iniciar Rutina"}
             </motion.button>
           </div>
         </div>
 
-        {/* ── Mode Selection Modal ──────────────────────────── */}
+        {/* Mode Selection Modal */}
         {modeModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
@@ -560,6 +748,60 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         )}
 
+        {/* ── Rename Modal ──────────────────────────────────────── */}
+        {renameTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+              <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
+                Editar nombre
+              </h2>
+              <p className={`text-xs font-mono text-center mb-4 ${textMuted}`}>
+                "{renameTarget.originalName}"
+              </p>
+              <input
+                type="text"
+                value={renameModalInput}
+                onChange={(e) => setRenameModalInput(e.target.value)}
+                placeholder="Nuevo nombre del ejercicio"
+                autoFocus
+                className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold outline-none transition-colors mb-4 ${
+                  isDark
+                    ? "bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-zinc-500"
+                    : "bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-zinc-400"
+                }`}
+              />
+              <div className="space-y-2">
+                <button onClick={applyRenameTemp}
+                  className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                    isDark
+                      ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                  }`}>
+                  Cambio Temporal (solo hoy)
+                </button>
+                <button onClick={applyRenamePerm}
+                  className="w-full py-3 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95">
+                  Cambio Permanente
+                </button>
+                <button onClick={revertRename}
+                  className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                    isDark
+                      ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
+                      : "border-red-200 text-red-500 hover:bg-red-50"
+                  }`}>
+                  Revertir a nombre original
+                </button>
+              </div>
+              <button
+                onClick={() => setRenameTarget(null)}
+                className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
+                  isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+                }`}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -567,15 +809,15 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   // ───── PHASE 3: EXECUTION ─────
   if (!selectedDay || !currentEx || !currentState) return null;
 
-  const totalExercises = selectedDay.exercises.length;
+  const totalExercises = orderedExercises.length;
   const isLastExercise = currentExIdx === totalExercises - 1;
   const isFirstExercise = currentExIdx === 0;
 
-  // Validation: all 3 mandatory sets must have weight AND reps > 0
+  const isOptional = isCalfSeated(currentEx.name);
   const topSetDone = parseFloat(currentState.topSetWeight) > 0 && parseInt(currentState.topSetReps) > 0;
   const backoff1Done = parseFloat(currentState.set3Weight) > 0 && parseInt(currentState.set3Reps) > 0;
-  const backoff2Done = parseFloat(currentState.set4Weight) > 0 && parseInt(currentState.set4Reps) > 0;
-  const canComplete = topSetDone && backoff1Done && backoff2Done;
+  // 2-set minimum: Top Set 1 + Set 2 (optional exercises are always valid)
+  const canComplete = isOptional || (topSetDone && backoff1Done);
   const isCompleted = currentState.completed;
   const nextAvailable = isCompleted;
 
@@ -585,7 +827,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       return;
     }
     if (!canComplete) {
-      setValidationToast("Completa Top Set 1, Set 2 y Set 3 con peso y reps > 0");
+      setValidationToast(isOptional ? "" : "Completa Top Set 1 y Set 2 con peso y reps > 0");
       return;
     }
     updateExState(currentExIdx, { completed: true });
@@ -596,7 +838,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         timestamp: Date.now(),
         profile,
         dayId: selectedDay.id,
-        exerciseName: currentEx.name,
+        exerciseName: getDisplayName(currentExIdx, currentEx.name),
         set1Weight: currentState.set1Weight,
         topSetWeight: currentState.topSetWeight,
         topSetReps: currentState.topSetReps,
@@ -611,7 +853,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
   const goToExercise = (idx: number) => setCurrentExIdx(idx);
 
-  const imgSrc = getImageSrc(currentEx.imageKey);
+  const displayName = getDisplayName(currentExIdx, currentEx.name);
+  const nameCustomized = isNameCustomized(currentExIdx, currentEx.name);
+  const imgSrc = !nameCustomized ? getImageSrc(currentEx.imageKey) : null;
   const accentFrom = isElla ? "from-pink-600" : "from-amber-500";
   const accentTo = isElla ? "to-rose-700" : "to-orange-600";
   const accentText = isElla ? "text-pink-400" : "text-amber-400";
@@ -624,7 +868,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   return (
     <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
       {/* Toast */}
-      {validationToast && (
+      {validationToast && validationToast.length > 0 && (
         <div className="fixed top-4 left-4 right-4 z-50 max-w-2xl mx-auto">
           <div className="bg-red-500/90 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl text-center backdrop-blur-sm">
             {validationToast}
@@ -632,10 +876,19 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         </div>
       )}
 
+      {/* ── Centered Error ──────────────────────────────── */}
+      {centerError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-red-500/90 text-white text-2xl font-black px-8 py-10 rounded-3xl shadow-2xl text-center max-w-sm mx-4 backdrop-blur-md leading-relaxed">
+            {centerError}
+          </div>
+        </div>
+      )}
+
       {/* ── Header ──────────────────────────────────────────── */}
       <header className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-zinc-950/95 border-zinc-900/80" : "bg-white/95 border-zinc-200"}`}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button onClick={() => setPhase("prepare")}
+          <button onClick={() => { setPhase("prepare"); }}
             className={`w-10 h-10 rounded-2xl border flex items-center justify-center active:scale-90 transition-all ${
               isDark ? "bg-zinc-900 border-zinc-800 text-zinc-300" : "bg-zinc-100 border-zinc-200 text-zinc-600"
             }`}>
@@ -645,7 +898,15 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <p className={`text-[10px] font-mono uppercase tracking-widest ${textMuted}`}>
               {selectedDay.dayLabel} · {currentExIdx + 1}/{totalExercises}
             </p>
-            <h1 className={`text-sm font-black leading-tight truncate px-2 ${textPrimary}`}>{currentEx.name}</h1>
+            <div className="flex items-center justify-center gap-1.5">
+              <h1 className={`text-sm font-black leading-tight truncate px-1 ${textPrimary}`}>{displayName}</h1>
+              <button
+                onClick={() => openRenameModal(currentExIdx, currentEx.name)}
+                className="p-1 rounded-lg hover:bg-zinc-700/30 transition-colors flex-shrink-0"
+              >
+                <Pencil size={11} className={isDark ? "text-zinc-500" : "text-zinc-400"} />
+              </button>
+            </div>
           </div>
           <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center text-xs font-black font-mono ${
             isDark ? "bg-zinc-900 border-zinc-800 text-zinc-400" : "bg-zinc-100 border-zinc-200 text-zinc-500"
@@ -655,7 +916,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         </div>
         {/* Progress dots */}
         <div className="flex items-center gap-1 px-4 pb-2 overflow-x-auto">
-          {selectedDay.exercises.map((_, idx) => {
+          {orderedExercises.map((_, idx) => {
             const exState = exerciseStates[idx];
             const isActive = idx === currentExIdx;
             return (
@@ -671,13 +932,13 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       </header>
 
       <div className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full">
-        {/* ── Movement Demo (only) ──────────────────────────── */}
+        {/* ── Movement Demo ──────────────────────────── */}
         <div className={`relative mx-4 mt-4 rounded-3xl overflow-hidden ${isDark ? "bg-zinc-900" : "bg-zinc-100 border border-zinc-200"}`} style={{ height: "200px" }}>
           {imgSrc ? (
-            <img src={imgSrc} alt={currentEx.name} className="w-full h-full object-contain p-4" />
+            <img src={imgSrc} alt={displayName} className="w-full h-full object-contain p-4" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-zinc-600">
-              <span className="text-5xl">💪</span>
+              <span className="text-5xl">{nameCustomized ? "✏️" : "💪"}</span>
             </div>
           )}
         </div>
@@ -690,7 +951,10 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           {currentEx.isDropset && (
             <span className="text-[10px] font-mono font-black tracking-widest uppercase px-2.5 py-1 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">💥 DROPSET</span>
           )}
-          {currentEx.notes && !currentEx.isSuperset && !currentEx.isDropset && (
+          {isOptional && (
+            <span className="text-[10px] font-mono font-black tracking-widest uppercase px-2.5 py-1 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">(Opcional)</span>
+          )}
+          {currentEx.notes && !currentEx.isSuperset && !currentEx.isDropset && !isOptional && (
             <span className={`text-[10px] font-mono flex items-center gap-1 ${textMuted}`}><Info size={10} /> {currentEx.notes}</span>
           )}
         </div>
@@ -704,6 +968,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               <p className={`text-xs font-black tracking-widest uppercase ${textPrimary}`}>SETS & REPS</p>
               <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>
                 {currentState.warmupEnabled ? "Calentamiento + 3-4 series" : "3-4 series"}
+                {isOptional && " (Opcional)"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -864,6 +1129,61 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         </div>
       </div>
+
+      {/* ── Rename Modal (Phase 3) ────────────────────────────── */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+            <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
+              Editar nombre
+            </h2>
+            <p className={`text-xs font-mono text-center mb-4 ${textMuted}`}>
+              "{renameTarget.originalName}"
+            </p>
+            <input
+              type="text"
+              value={renameModalInput}
+              onChange={(e) => setRenameModalInput(e.target.value)}
+              placeholder="Nuevo nombre del ejercicio"
+              autoFocus
+              className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold outline-none transition-colors mb-4 ${
+                isDark
+                  ? "bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-zinc-500"
+                  : "bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-zinc-400"
+              }`}
+            />
+            <div className="space-y-2">
+              <button onClick={applyRenameTemp}
+                className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                  isDark
+                    ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                    : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                }`}>
+                Cambio Temporal (solo hoy)
+              </button>
+              <button onClick={applyRenamePerm}
+                className="w-full py-3 rounded-2xl font-black text-sm tracking-wide bg-pink-500 text-white border border-pink-400 transition-all active:scale-95">
+                Cambio Permanente
+              </button>
+              <button onClick={revertRename}
+                className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                  isDark
+                    ? "border-red-900/40 text-red-400 hover:bg-red-950/20"
+                    : "border-red-200 text-red-500 hover:bg-red-50"
+                }`}>
+                Revertir a nombre original
+              </button>
+            </div>
+            <button
+              onClick={() => setRenameTarget(null)}
+              className={`w-full mt-3 py-3 rounded-2xl text-xs font-bold transition-colors ${
+                isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"
+              }`}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
