@@ -7,6 +7,7 @@ import type { ProfileId } from "@/data/routines";
 import type { RoutineDay, ExerciseConfig } from "@/data/routines";
 
 export type TimerMode = "normal" | "fast";
+export type Theme = "light" | "dark";
 
 export default function App() {
   const [profile, setProfile] = useState<ProfileId | null>(null);
@@ -17,6 +18,10 @@ export default function App() {
     (localStorage.getItem("gym_weight_unit") as "kg" | "lbs") || "kg"
   );
   const [timerMode, setTimerMode] = useState<TimerMode>("normal");
+  // Theme: light by default
+  const [theme, setTheme] = useState<Theme>(
+    (localStorage.getItem("gym_theme") as Theme) || "light"
+  );
 
   // Restore session on load
   useEffect(() => {
@@ -47,6 +52,12 @@ export default function App() {
     localStorage.setItem("gym_weight_unit", next);
   };
 
+  const handleToggleTheme = () => {
+    const next: Theme = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    localStorage.setItem("gym_theme", next);
+  };
+
   const handleSelectDay = (day: RoutineDay) => {
     setSelectedDay(day);
     setView("routine");
@@ -68,15 +79,26 @@ export default function App() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-zinc-950 font-sans antialiased text-zinc-100 overflow-hidden">
+    <div
+      className={`w-full min-h-screen font-sans antialiased overflow-hidden ${
+        theme === "dark"
+          ? "dark bg-zinc-950 text-zinc-100"
+          : "bg-zinc-50 text-zinc-900"
+      }`}
+    >
       {view === "welcome" && (
-        <WelcomeScreen onSelectProfile={handleSelectProfile} />
+        <WelcomeScreen
+          theme={theme}
+          onSelectProfile={handleSelectProfile}
+        />
       )}
       {view === "dashboard" && profile && (
         <Dashboard
           profile={profile}
           unit={unit}
+          theme={theme}
           onToggleUnit={handleToggleUnit}
+          onToggleTheme={handleToggleTheme}
           onLogout={handleLogout}
           onSelectDay={handleSelectDay}
         />
@@ -86,6 +108,7 @@ export default function App() {
           profile={profile}
           day={selectedDay}
           unit={unit}
+          theme={theme}
           timerMode={timerMode}
           onTimerModeChange={setTimerMode}
           onBack={handleBackToDashboard}
@@ -98,6 +121,7 @@ export default function App() {
           day={selectedDay}
           exercise={selectedExercise}
           unit={unit}
+          theme={theme}
           timerMode={timerMode}
           onBack={handleBackToRoutine}
         />

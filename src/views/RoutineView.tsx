@@ -1,12 +1,13 @@
 import { ArrowLeft, Heart, ChevronRight, Zap, Clock } from "lucide-react";
 import { getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay, ExerciseConfig } from "@/data/routines";
-import type { TimerMode } from "@/App";
+import type { TimerMode, Theme } from "@/App";
 
 interface RoutineViewProps {
   profile: ProfileId;
   day: RoutineDay;
   unit: "kg" | "lbs";
+  theme: Theme;
   timerMode: TimerMode;
   onTimerModeChange: (mode: TimerMode) => void;
   onBack: () => void;
@@ -14,123 +15,115 @@ interface RoutineViewProps {
 }
 
 export default function RoutineView({
-  profile,
-  day,
-  timerMode,
-  onTimerModeChange,
-  onBack,
-  onSelectExercise,
+  profile, day, theme, timerMode, onTimerModeChange, onBack, onSelectExercise,
 }: RoutineViewProps) {
   const isElla = profile === "ella";
+  const isDark = theme === "dark";
   const heroBg = getImageSrc(day.heroBg);
-  const normalDuration = day.exercises.length * 8; // ~8 min per exercise estimate
+  const normalDuration = day.exercises.length * 8;
   const fastDuration = day.exercises.length * 5;
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col relative overflow-hidden">
+    <div className={`min-h-screen flex flex-col relative overflow-hidden ${isDark ? "bg-zinc-950" : "bg-zinc-50"}`}>
 
-      {/* ─── Hero Background ──────────────────────────────────────────────────── */}
+      {/* ── Hero Background ──────────────────────────────────────────── */}
       <div className="absolute inset-0">
         {heroBg && (
           <img
-            src={heroBg}
-            alt={day.title}
+            src={heroBg} alt={day.title}
             className="w-full h-full object-cover object-center"
             style={{ filter: "blur(2px)", transform: "scale(1.06)" }}
           />
         )}
-        {/* Deep gradient overlay — cinematic dark */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/75 to-zinc-950/30" />
-        <div className="absolute inset-0 bg-zinc-950/40" />
+        {/* Dark mode: fade to black; Light mode: fade to white */}
+        {isDark
+          ? <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-zinc-950/40" />
+          : <div className="absolute inset-0 bg-gradient-to-t from-white via-white/85 to-white/50" />
+        }
       </div>
 
-      {/* ─── Floating Header ──────────────────────────────────────────────────── */}
+      {/* ── Floating Header ──────────────────────────────────────────── */}
       <header className="relative z-20 safe-top">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
-          {/* Back button */}
-          <button
-            id="routine-back-btn"
-            onClick={onBack}
-            className="w-10 h-10 rounded-2xl bg-zinc-900/70 backdrop-blur-md border border-zinc-800/60 flex items-center justify-center text-zinc-300 hover:text-white active:scale-90 transition-all"
-          >
+          <button id="routine-back-btn" onClick={onBack}
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-md border transition-all active:scale-90 ${
+              isDark
+                ? "bg-zinc-900/70 border-zinc-800/60 text-zinc-300 hover:text-white"
+                : "bg-white/80 border-zinc-200 text-zinc-600 hover:text-zinc-900 shadow-sm"
+            }`}>
             <ArrowLeft size={18} />
           </button>
 
-          {/* Timer mode selector — pill */}
-          <div className="flex items-center bg-zinc-900/70 backdrop-blur-md border border-zinc-800/60 rounded-2xl p-1 gap-1">
-            <button
-              id="timer-normal-btn"
-              onClick={() => onTimerModeChange("normal")}
+          {/* Timer mode pill */}
+          <div className={`flex items-center backdrop-blur-md border rounded-2xl p-1 gap-1 ${
+            isDark ? "bg-zinc-900/70 border-zinc-800/60" : "bg-white/80 border-zinc-200 shadow-sm"
+          }`}>
+            <button id="timer-normal-btn" onClick={() => onTimerModeChange("normal")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                 timerMode === "normal"
-                  ? "bg-white text-zinc-950 shadow-md"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Clock size={11} />
-              {normalDuration} min
+                  ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
+                  : isDark ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-500 hover:text-zinc-800"
+              }`}>
+              <Clock size={11} /> {normalDuration} min
             </button>
-            <button
-              id="timer-fast-btn"
-              onClick={() => onTimerModeChange("fast")}
+            <button id="timer-fast-btn" onClick={() => onTimerModeChange("fast")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                 timerMode === "fast"
-                  ? "bg-white text-zinc-950 shadow-md"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Zap size={11} />
-              {fastDuration} min
+                  ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
+                  : isDark ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-500 hover:text-zinc-800"
+              }`}>
+              <Zap size={11} /> {fastDuration} min
             </button>
           </div>
 
-          {/* Favorites */}
-          <button className="w-10 h-10 rounded-2xl bg-zinc-900/70 backdrop-blur-md border border-zinc-800/60 flex items-center justify-center text-zinc-400 hover:text-pink-400 active:scale-90 transition-all">
+          <button className={`w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-md border transition-all active:scale-90 ${
+            isDark
+              ? "bg-zinc-900/70 border-zinc-800/60 text-zinc-400 hover:text-pink-400"
+              : "bg-white/80 border-zinc-200 text-zinc-400 hover:text-pink-500 shadow-sm"
+          }`}>
             <Heart size={18} />
           </button>
         </div>
       </header>
 
-      {/* ─── Day Info ─────────────────────────────────────────────────────────── */}
+      {/* ── Day Info ─────────────────────────────────────────────────── */}
       <div className="relative z-10 flex-1 flex flex-col max-w-2xl mx-auto w-full px-4">
-        
-        {/* Title block */}
         <div className="mt-8 mb-8">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] font-mono font-bold tracking-widest text-zinc-400 uppercase bg-zinc-900/60 backdrop-blur px-2.5 py-1 rounded-full border border-zinc-800/60">
-              {day.dayLabel}
-            </span>
+            <span className={`text-[10px] font-mono font-bold tracking-widest uppercase px-2.5 py-1 rounded-full border backdrop-blur ${
+              isDark ? "bg-zinc-900/60 border-zinc-800/60 text-zinc-400" : "bg-white/80 border-zinc-200 text-zinc-500"
+            }`}>{day.dayLabel}</span>
             <span className={`text-[10px] font-mono font-bold tracking-widest uppercase px-2.5 py-1 rounded-full border ${
               timerMode === "fast"
-                ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
-                : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-            }`}>
-              {timerMode === "fast" ? "⚡ Modo Rápido" : "🟢 Modo Normal"}
-            </span>
+                ? "text-amber-500 bg-amber-500/10 border-amber-500/30"
+                : "text-emerald-500 bg-emerald-500/10 border-emerald-500/30"
+            }`}>{timerMode === "fast" ? "⚡ Modo Rápido" : "🟢 Modo Normal"}</span>
           </div>
 
-          <h1 className="text-5xl font-black tracking-tighter text-white leading-none mb-2">
+          <h1 className={`text-5xl font-black tracking-tighter leading-none mb-2 ${isDark ? "text-white" : "text-zinc-900"}`}>
             {day.title}
           </h1>
-          <p className="text-zinc-400 text-sm font-mono">{day.subtitle} · {day.duration}</p>
+          <p className={`text-sm font-mono ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+            {day.subtitle} · {day.duration}
+          </p>
 
           <div className="flex gap-3 mt-4">
-            <div className="text-center bg-zinc-900/60 backdrop-blur border border-zinc-800/60 rounded-xl px-4 py-2">
-              <p className="text-xs text-zinc-500 font-mono">Ejercicios</p>
-              <p className="text-lg font-black text-white">{day.exercises.length}</p>
-            </div>
-            <div className="text-center bg-zinc-900/60 backdrop-blur border border-zinc-800/60 rounded-xl px-4 py-2">
-              <p className="text-xs text-zinc-500 font-mono">Descanso</p>
-              <p className="text-lg font-black text-white">{timerMode === "normal" ? "3 min" : "2 min"}</p>
-            </div>
-            <div className="text-center bg-zinc-900/60 backdrop-blur border border-zinc-800/60 rounded-xl px-4 py-2">
-              <p className="text-xs text-zinc-500 font-mono">Series</p>
-              <p className="text-lg font-black text-white">3–4</p>
-            </div>
+            {[
+              { label: "Ejercicios", value: day.exercises.length },
+              { label: "Descanso", value: timerMode === "normal" ? "3 min" : "2 min" },
+              { label: "Series", value: "3–4" },
+            ].map(({ label, value }) => (
+              <div key={label} className={`text-center backdrop-blur border rounded-xl px-4 py-2 ${
+                isDark ? "bg-zinc-900/60 border-zinc-800/60" : "bg-white/80 border-zinc-200 shadow-sm"
+              }`}>
+                <p className={`text-xs font-mono ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{label}</p>
+                <p className={`text-lg font-black ${isDark ? "text-white" : "text-zinc-900"}`}>{value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ─── Exercise List ──────────────────────────────────────────────────── */}
+        {/* ── Exercise List ─────────────────────────────────────────── */}
         <div className="flex-1 space-y-2 pb-28">
           {day.exercises.map((exercise, idx) => (
             <ExerciseRow
@@ -138,21 +131,24 @@ export default function RoutineView({
               exercise={exercise}
               index={idx}
               isElla={isElla}
+              isDark={isDark}
               onClick={() => onSelectExercise(exercise)}
             />
           ))}
         </div>
       </div>
 
-      {/* ─── Fixed Bottom CTA ─────────────────────────────────────────────────── */}
+      {/* ── Fixed Bottom CTA ─────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-20 p-4 safe-bottom">
         <div className="max-w-2xl mx-auto">
-          <button
-            id="start-routine-btn"
+          <button id="start-routine-btn"
             onClick={() => onSelectExercise(day.exercises[0])}
-            className="w-full bg-white text-zinc-950 font-black text-base tracking-wide py-4 rounded-2xl shadow-2xl shadow-black/50 active:scale-[0.98] transition-transform duration-150 flex items-center justify-center gap-2"
-          >
-            <Zap size={18} className="text-zinc-900" />
+            className={`w-full font-black text-base tracking-wide py-4 rounded-2xl shadow-2xl active:scale-[0.98] transition-transform duration-150 flex items-center justify-center gap-2 ${
+              isDark
+                ? "bg-white text-zinc-950 shadow-black/50"
+                : "bg-zinc-900 text-white shadow-zinc-900/30"
+            }`}>
+            <Zap size={18} />
             Iniciar Rutina
           </button>
         </div>
@@ -161,62 +157,47 @@ export default function RoutineView({
   );
 }
 
-// ─── ExerciseRow ───────────────────────────────────────────────────────────────
-function ExerciseRow({
-  exercise,
-  index,
-  isElla,
-  onClick,
-}: {
-  exercise: ExerciseConfig;
-  index: number;
-  isElla: boolean;
-  onClick: () => void;
+// ── ExerciseRow ───────────────────────────────────────────────────────────────
+function ExerciseRow({ exercise, index, isElla, isDark, onClick }: {
+  exercise: ExerciseConfig; index: number; isElla: boolean; isDark: boolean; onClick: () => void;
 }) {
   const imgSrc = getImageSrc(exercise.imageKey);
+  const tagAccent = isElla
+    ? "bg-pink-500/10 text-pink-500 border-pink-500/20"
+    : "bg-amber-500/10 text-amber-500 border-amber-500/20";
 
   return (
-    <button
-      id={`exercise-row-${index}`}
-      onClick={onClick}
-      className="w-full text-left bg-zinc-900/60 backdrop-blur-md border border-zinc-800/50 rounded-2xl p-3 flex items-center gap-3 hover:bg-zinc-900/80 hover:border-zinc-700/60 active:scale-[0.98] transition-all duration-150 group"
-    >
-      {/* Thumbnail */}
-      <div className="w-14 h-14 rounded-xl overflow-hidden bg-zinc-800 flex-shrink-0">
-        {imgSrc ? (
-          <img
-            src={imgSrc}
-            alt={exercise.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-lg">💪</div>
-        )}
+    <button id={`exercise-row-${index}`} onClick={onClick}
+      className={`w-full text-left rounded-2xl p-3 flex items-center gap-3 backdrop-blur-md border active:scale-[0.98] transition-all duration-150 group ${
+        isDark
+          ? "bg-zinc-900/60 border-zinc-800/50 hover:bg-zinc-900/80 hover:border-zinc-700/60"
+          : "bg-white/80 border-zinc-200 hover:bg-white hover:border-zinc-300 shadow-sm"
+      }`}>
+      <div className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 ${isDark ? "bg-zinc-800" : "bg-zinc-100"}`}>
+        {imgSrc
+          ? <img src={imgSrc} alt={exercise.name} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-lg">💪</div>
+        }
       </div>
 
-      {/* Name + tags */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
           {exercise.isSuperset && (
-            <span className={`text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full ${
-              isElla ? "bg-pink-500/15 text-pink-400" : "bg-amber-500/15 text-amber-400"
-            }`}>
-              ⛓️ SUPERSET
-            </span>
+            <span className={`text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full border ${tagAccent}`}>⛓️ SS</span>
           )}
           {exercise.isDropset && (
-            <span className="text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">
-              💥 DROPSET
-            </span>
+            <span className="text-[9px] font-mono font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">💥 DROP</span>
           )}
         </div>
-        <p className="text-sm font-semibold text-zinc-100 leading-tight truncate">{exercise.name}</p>
+        <p className={`text-sm font-semibold leading-tight truncate ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>{exercise.name}</p>
         {exercise.notes && (
-          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{exercise.notes}</p>
+          <p className={`text-[10px] mt-0.5 truncate ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>{exercise.notes}</p>
         )}
       </div>
 
-      <ChevronRight size={18} className="text-zinc-600 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+      <ChevronRight size={18} className={`flex-shrink-0 group-hover:translate-x-0.5 transition-all ${
+        isDark ? "text-zinc-600 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
+      }`} />
     </button>
   );
 }

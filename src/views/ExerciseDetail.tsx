@@ -3,13 +3,14 @@ import { ArrowLeft, Sparkles, Zap, Check, RotateCcw, Plus, Minus, Info } from "l
 import { getImageSrc } from "@/data/routines";
 import type { ProfileId, RoutineDay, ExerciseConfig } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
-import type { TimerMode } from "@/App";
+import type { TimerMode, Theme } from "@/App";
 
 interface ExerciseDetailProps {
   profile: ProfileId;
   day: RoutineDay;
   exercise: ExerciseConfig;
   unit: "kg" | "lbs";
+  theme: Theme;
   timerMode: TimerMode;
   onBack: () => void;
 }
@@ -137,14 +138,22 @@ function RepStepper({
 }
 
 export default function ExerciseDetail({
-  profile, day, exercise, unit, timerMode, onBack
+  profile, day, exercise, unit, theme, timerMode, onBack
 }: ExerciseDetailProps) {
   const isElla = profile === "ella";
+  const isDark = theme === "dark";
   const accentFrom = isElla ? "from-pink-600" : "from-amber-500";
   const accentTo = isElla ? "to-rose-700" : "to-orange-600";
   const accentText = isElla ? "text-pink-400" : "text-amber-400";
   const accentBorder = isElla ? "border-pink-500/40" : "border-amber-500/40";
   const accentBg = isElla ? "bg-pink-500/10" : "bg-amber-500/10";
+
+  // Theme-aware utility classes
+  const bg          = isDark ? "bg-zinc-950"       : "bg-zinc-50";
+  const navBg       = isDark ? "bg-zinc-950/95 border-zinc-900/80" : "bg-white/95 border-zinc-200";
+  const cardBg      = isDark ? "bg-zinc-900/40 border-zinc-800/60" : "bg-white border-zinc-200 shadow-sm";
+  const textPrimary = isDark ? "text-zinc-100"     : "text-zinc-900";
+  const textMuted   = isDark ? "text-zinc-500"     : "text-zinc-400";
 
   const imgSrc = getImageSrc(exercise.imageKey);
 
@@ -277,22 +286,22 @@ export default function ExerciseDetail({
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className={`min-h-screen flex flex-col ${bg}`}>
 
-      {/* ─── Header ───────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-900/80 safe-top">
+      {/* ─── Header ──────────────────────────────────────────────── */}
+      <header className={`sticky top-0 z-20 backdrop-blur-xl border-b safe-top ${navBg}`}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button
             id="exercise-back-btn"
             onClick={onBack}
-            className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 hover:text-white active:scale-90 transition-all"
+            className={`w-10 h-10 rounded-2xl border flex items-center justify-center active:scale-90 transition-all ${isDark ? "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white" : "bg-zinc-100 border-zinc-200 text-zinc-600 hover:text-zinc-900"}`}
           >
             <ArrowLeft size={18} />
           </button>
 
           <div className="flex-1 text-center">
-            <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{day.dayLabel}</p>
-            <h1 className="text-sm font-black text-zinc-100 leading-tight truncate px-2">{exercise.name}</h1>
+            <p className={`text-[10px] font-mono uppercase tracking-widest ${textMuted}`}>{day.dayLabel}</p>
+            <h1 className={`text-sm font-black leading-tight truncate px-2 ${textPrimary}`}>{exercise.name}</h1>
           </div>
 
           {/* Complete checkmark */}
@@ -302,7 +311,9 @@ export default function ExerciseDetail({
             className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-all active:scale-90 ${
               isCompleted
                 ? "bg-emerald-500 border-emerald-400 text-white"
-                : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-emerald-700 hover:text-emerald-500"
+                : isDark
+                  ? "bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-emerald-700 hover:text-emerald-500"
+                  : "bg-zinc-100 border-zinc-200 text-zinc-400 hover:border-emerald-400 hover:text-emerald-500"
             }`}
           >
             <Check size={17} strokeWidth={3} />
@@ -314,7 +325,7 @@ export default function ExerciseDetail({
       <div className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full">
 
         {/* Exercise Image Viewer */}
-        <div className="relative bg-zinc-900 mx-4 mt-4 rounded-3xl overflow-hidden" style={{ height: "220px" }}>
+        <div className={`relative mx-4 mt-4 rounded-3xl overflow-hidden ${isDark ? "bg-zinc-900" : "bg-zinc-100 border border-zinc-200"}`} style={{ height: "220px" }}>
           {activeView === "demo" ? (
             imgSrc ? (
               <img
@@ -331,20 +342,17 @@ export default function ExerciseDetail({
               </div>
             )
           ) : (
-            // Muscle view placeholder (anatomical)
-            <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500 p-6 text-center">
+            <div className={`w-full h-full flex flex-col items-center justify-center p-6 text-center ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
               <span className="text-5xl mb-3">🫀</span>
-              <p className="text-sm font-semibold text-zinc-400">Mapa Muscular</p>
-              <p className="text-xs text-zinc-600 mt-1 font-mono">{exercise.notes || "Músculos activados en este movimiento"}</p>
+              <p className={`text-sm font-semibold ${textPrimary}`}>Mapa Muscular</p>
+              <p className={`text-xs mt-1 font-mono ${textMuted}`}>{exercise.notes || "Músculos activados en este movimiento"}</p>
             </div>
           )}
-
-          {/* Gradient bottom fade */}
-          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-zinc-900 to-transparent" />
+          <div className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t ${isDark ? "from-zinc-900" : "from-zinc-100"} to-transparent`} />
         </div>
 
         {/* View Toggle Pill */}
-        <div className="flex mx-4 mt-3 bg-zinc-900/80 rounded-2xl p-1 border border-zinc-800/60">
+        <div className={`flex mx-4 mt-3 rounded-2xl p-1 border ${isDark ? "bg-zinc-900/80 border-zinc-800/60" : "bg-zinc-100 border-zinc-200"}`}>
           {(["demo", "muscle"] as const).map((v) => (
             <button
               key={v}
@@ -352,8 +360,8 @@ export default function ExerciseDetail({
               onClick={() => setActiveView(v)}
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                 activeView === v
-                  ? "bg-zinc-800 text-zinc-100 shadow"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? isDark ? "bg-zinc-800 text-zinc-100 shadow" : "bg-white text-zinc-900 shadow-sm"
+                  : isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-700"
               }`}
             >
               {v === "demo" ? "Movement Demo" : "Muscle View"}
@@ -369,31 +377,31 @@ export default function ExerciseDetail({
             </span>
           )}
           {exercise.isDropset && (
-            <span className="text-[10px] font-mono font-black tracking-widest uppercase px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">
+            <span className="text-[10px] font-mono font-black tracking-widest uppercase px-2.5 py-1 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
               💥 DROPSET
             </span>
           )}
           {exercise.notes && !exercise.isSuperset && !exercise.isDropset && (
-            <span className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
+            <span className={`text-[10px] font-mono flex items-center gap-1 ${textMuted}`}>
               <Info size={10} /> {exercise.notes}
             </span>
           )}
         </div>
 
-        {/* ─── SETS & REPS Module ───────────────────────────────────────────────── */}
-        <div className="mx-4 mt-4 rounded-3xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+        {/* ─── SETS & REPS Module ─────────────────────────────────── */}
+        <div className={`mx-4 mt-4 rounded-3xl border overflow-hidden ${cardBg}`}>
           
           {/* Module Header */}
-          <div className="px-5 py-4 border-b border-zinc-800/60 flex items-center justify-between">
+          <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? "border-zinc-800/60" : "border-zinc-100"}`}>
             <div>
-              <p className="text-xs font-black tracking-widest text-zinc-300 uppercase">SETS & REPS</p>
-              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+              <p className={`text-xs font-black tracking-widest uppercase ${textPrimary}`}>SETS & REPS</p>
+              <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>
                 {warmupEnabled ? "Calentamiento + 3-4 series" : "3-4 series al fallo"}
               </p>
             </div>
             {/* Warm-up toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-zinc-500 font-mono">Warm-Up</span>
+              <span className={`text-[10px] font-mono ${textMuted}`}>Warm-Up</span>
               <button
                 id="warmup-toggle"
                 onClick={async () => {
@@ -414,10 +422,10 @@ export default function ExerciseDetail({
 
           {/* Warm-up Set (conditional) */}
           {warmupEnabled && (
-            <div className="px-5 py-4 border-b border-zinc-800/40 flex items-center justify-between animate-fade-in">
+            <div className={`px-5 py-4 border-b flex items-center justify-between animate-fade-in ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
               <div>
-                <p className="text-sm font-semibold text-zinc-400">Set de Calentamiento</p>
-                <p className="text-[11px] text-zinc-600 font-mono mt-0.5">Preparación articular · ~50% del peso</p>
+                <p className={`text-sm font-semibold ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>Set de Calentamiento</p>
+                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>Preparación articular · ~50% del peso</p>
               </div>
               <NumericStepper
                 value={warmupWeight}
@@ -429,11 +437,11 @@ export default function ExerciseDetail({
           )}
 
           {/* Set 1: Aproximación */}
-          <div className="px-5 py-4 border-b border-zinc-800/40">
+          <div className={`px-5 py-4 border-b ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-zinc-300">Set 1 · Aproximación</p>
-                <p className="text-[11px] text-zinc-600 font-mono mt-0.5">Carga moderada · RPE 7</p>
+                <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Set 1 · Aproximación</p>
+                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>Carga moderada · RPE 7</p>
               </div>
               <div className="flex items-center gap-2">
                 <NumericStepper
@@ -448,13 +456,13 @@ export default function ExerciseDetail({
           </div>
 
           {/* Set 2: TOP SET */}
-          <div className={`px-5 py-4 border-b border-zinc-800/40 ${accentBg} border-l-2 ${accentBorder}`}>
+          <div className={`px-5 py-4 border-b border-l-2 ${accentBg} ${accentBorder} ${isDark ? "border-zinc-800/40" : "border-zinc-100"}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className={`text-sm font-black ${accentText} flex items-center gap-1.5`}>
                   Set 2 · TOP SET <Sparkles size={13} className={`${accentText} animate-pulse`} />
                 </p>
-                <p className="text-[11px] text-zinc-500 font-mono mt-0.5">Esfuerzo máximo · RPE 9-10 al fallo</p>
+                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>Esfuerzo máximo · RPE 9-10 al fallo</p>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -492,8 +500,8 @@ export default function ExerciseDetail({
           <div className="px-5 py-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-semibold text-zinc-300">Sets 3 & 4 · Back-off</p>
-                <p className="text-[11px] text-zinc-600 font-mono mt-0.5">Fatiga acumulada · -10% del peso</p>
+                <p className={`text-sm font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>Sets 3 & 4 · Back-off</p>
+                <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>Fatiga acumulada · -10% del peso</p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -521,12 +529,12 @@ export default function ExerciseDetail({
           </div>
         </div>
 
-        {/* ─── Rest Timer ───────────────────────────────────────────────────────── */}
-        <div className="mx-4 mt-4 mb-6 rounded-3xl border border-zinc-800/60 bg-zinc-900/40 p-5">
+        {/* ─── Rest Timer ─────────────────────────────────────────── */}
+        <div className={`mx-4 mt-4 mb-6 rounded-3xl border p-5 ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-xs font-black tracking-widest text-zinc-300 uppercase">⏱ Descanso</p>
-              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+              <p className={`text-xs font-black tracking-widest uppercase ${textPrimary}`}>⏱ Descanso</p>
+              <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>
                 {timerMode === "normal" ? "Modo Normal · 3:00" : "Modo Rápido · 2:00"}
               </p>
             </div>
@@ -561,12 +569,11 @@ export default function ExerciseDetail({
                   className="transition-all duration-1000"
                 />
               </svg>
-              {/* Center text */}
               <div className="absolute inset-0 flex items-center justify-center">
                 {timerDone ? (
                   <span className="text-2xl">✅</span>
                 ) : (
-                  <span className="text-lg font-black text-zinc-100 font-mono">
+                  <span className={`text-lg font-black font-mono ${textPrimary}`}>
                     {timerActive ? formatTime(timerSeconds) : formatTime(totalSeconds)}
                   </span>
                 )}
@@ -576,9 +583,9 @@ export default function ExerciseDetail({
             {/* Controls */}
             <div className="flex-1">
               {timerDone ? (
-                <p className="text-sm font-bold text-emerald-400 mb-3">¡Descansaste bien! 💪</p>
+                <p className="text-sm font-bold text-emerald-500 mb-3">¡Descansaste bien! 💪</p>
               ) : (
-                <p className="text-sm text-zinc-400 mb-3">
+                <p className={`text-sm mb-3 ${textMuted}`}>
                   {timerActive ? "Descansando..." : "Presiona Start después de completar cada serie."}
                 </p>
               )}
@@ -603,17 +610,17 @@ export default function ExerciseDetail({
 
         {/* Notes */}
         {exercise.notes && (
-          <div className="mx-4 mb-8 p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/40">
-            <p className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest mb-1.5">📝 Técnica</p>
-            <p className="text-sm text-zinc-400 leading-relaxed">{exercise.notes}</p>
+          <div className={`mx-4 mb-8 p-4 rounded-2xl border ${isDark ? "bg-zinc-900/40 border-zinc-800/40" : "bg-zinc-50 border-zinc-200"}`}>
+            <p className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-1.5 ${textMuted}`}>📝 Técnica</p>
+            <p className={`text-sm leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>{exercise.notes}</p>
           </div>
         )}
 
         {/* Dropset note */}
         {exercise.isDropset && (
-          <div className="mx-4 mb-8 p-4 rounded-2xl bg-red-950/20 border border-red-900/40">
-            <p className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest mb-1.5">💥 DROPSET INSTRUCTIONS</p>
-            <p className="text-sm text-red-300/80 leading-relaxed">
+          <div className={`mx-4 mb-8 p-4 rounded-2xl border ${isDark ? "bg-red-950/20 border-red-900/40" : "bg-red-50 border-red-200"}`}>
+            <p className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-1.5 ${isDark ? "text-red-400" : "text-red-500"}`}>💥 DROPSET INSTRUCTIONS</p>
+            <p className={`text-sm leading-relaxed ${isDark ? "text-red-300/80" : "text-red-600"}`}>
               Top Set pesado → Drop inmediato (sin descanso):<br />
               4 reps → 6 reps → 8 reps → 10 reps<br />
               Baja el peso ~20% en cada drop.
