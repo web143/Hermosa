@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import WelcomeScreen from "@/views/WelcomeScreen";
 import HomeView from "@/views/HomeView";
-import RoutineView from "@/views/RoutineView";
-import ExerciseDetail from "@/views/ExerciseDetail";
 import WorkoutView from "@/views/WorkoutView";
 import AnalyticsView from "@/views/AnalyticsView";
 import SettingsView from "@/views/SettingsView";
 import BottomNav from "@/components/BottomNav";
 import type { TabId } from "@/components/BottomNav";
 import type { ProfileId } from "@/data/routines";
-import type { RoutineDay, ExerciseConfig } from "@/data/routines";
 
 export type TimerMode = "normal" | "fast";
 export type Theme = "light" | "dark";
@@ -17,8 +14,6 @@ export type Theme = "light" | "dark";
 export default function App() {
   const [profile, setProfile] = useState<ProfileId | null>(null);
   const [tab, setTab] = useState<TabId>("home");
-  const [selectedDay, setSelectedDay] = useState<RoutineDay | null>(null);
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig | null>(null);
   const [unit, setUnit] = useState<"kg" | "lbs">(
     (localStorage.getItem("gym_weight_unit") as "kg" | "lbs") || "kg"
   );
@@ -44,8 +39,6 @@ export default function App() {
   const handleLogout = () => {
     setProfile(null);
     localStorage.removeItem("gym_active_session");
-    setSelectedDay(null);
-    setSelectedExercise(null);
   };
 
   const handleToggleUnit = () => {
@@ -60,32 +53,11 @@ export default function App() {
     localStorage.setItem("gym_theme", next);
   };
 
-  const handleSelectDay = (day: RoutineDay) => {
-    setSelectedDay(day);
-  };
-
-  const handleBackToHome = () => {
-    setSelectedDay(null);
-    setSelectedExercise(null);
-  };
-
-  const handleSelectExercise = (exercise: ExerciseConfig) => {
-    setSelectedExercise(exercise);
-  };
-
-  const handleBackToRoutine = () => {
-    setSelectedExercise(null);
-  };
-
   const handleTabChange = (newTab: TabId) => {
     setTab(newTab);
-    // Clear sub-views when switching tabs
-    setSelectedDay(null);
-    setSelectedExercise(null);
   };
 
-  const showNav = profile !== null && selectedDay === null && selectedExercise === null;
-  const isRoutineView = selectedDay !== null && selectedExercise === null;
+  const showNav = profile !== null;
 
   return (
     <div
@@ -103,29 +75,19 @@ export default function App() {
       )}
 
       {/* Main tab content — only when logged in */}
-      {profile && !selectedExercise && (
-        <div className={`pb-safe ${showNav ? "pb-16" : ""}`}>
-          {selectedDay ? (
-            <RoutineView
-              profile={profile}
-              day={selectedDay}
-              unit={unit}
-              theme={theme}
-              timerMode={timerMode}
-              onTimerModeChange={setTimerMode}
-              onBack={handleBackToHome}
-              onSelectExercise={handleSelectExercise}
-            />
-          ) : tab === "home" ? (
+      {profile && (
+        <div className={`${showNav ? "pb-16" : ""}`}>
+          {tab === "home" ? (
             <HomeView
               profile={profile}
               theme={theme}
-              onSelectDay={handleSelectDay}
             />
           ) : tab === "workout" ? (
             <WorkoutView
+              profile={profile}
               theme={theme}
-              onNavigateHome={() => setTab("home")}
+              timerMode={timerMode}
+              onTimerModeChange={setTimerMode}
             />
           ) : tab === "analytics" ? (
             <AnalyticsView
@@ -145,23 +107,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Exercise Detail — full screen overlay */}
-      {profile && selectedDay && selectedExercise && (
-        <ExerciseDetail
-          profile={profile}
-          day={selectedDay}
-          exercise={selectedExercise}
-          unit={unit}
-          theme={theme}
-          timerMode={timerMode}
-          onBack={handleBackToRoutine}
-        />
-      )}
-
       {/* Bottom Navigation */}
-      {showNav && (
+      {profile && (
         <BottomNav
-          activeTab={isRoutineView ? "home" : tab}
+          activeTab={tab}
           onTabChange={handleTabChange}
         />
       )}

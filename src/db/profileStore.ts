@@ -75,6 +75,25 @@ export function updateSessionExercises(
   }
 }
 
+export function deleteSession(profile: ProfileId, date: string): void {
+  const data = read(profile);
+  data.sessions = data.sessions.filter((s) => s.date !== date);
+  write(profile, data);
+}
+
+export function removeExerciseFromSession(
+  profile: ProfileId,
+  date: string,
+  exerciseIndex: number
+): void {
+  const data = read(profile);
+  const session = data.sessions.find((s) => s.date === date);
+  if (session) {
+    session.exercises = session.exercises.filter((_, i) => i !== exerciseIndex);
+    write(profile, data);
+  }
+}
+
 export function getSessionDates(profile: ProfileId): string[] {
   return read(profile).sessions.map((s) => s.date);
 }

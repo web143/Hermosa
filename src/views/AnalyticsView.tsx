@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Trophy, Flame, Target, Plus, Minus, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trophy, Flame, Target, Plus, Minus, Save, Trash2, X } from "lucide-react";
 import type { ProfileId } from "@/data/routines";
-import { getSessions, getSessionByDate, updateSessionExercises, getTotalSessions, getCurrentStreak, getTopMuscle } from "@/db/profileStore";
+import { getRoutineForProfile } from "@/data/routines";
+import { getSessions, getSessionByDate, updateSessionExercises, deleteSession, getTotalSessions, getCurrentStreak, getTopMuscle } from "@/db/profileStore";
 import type { ExerciseLog } from "@/db/profileStore";
 
 interface AnalyticsViewProps {
@@ -77,7 +78,6 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
             </button>
           </div>
 
-          {/* Weekday headers */}
           <div className="grid grid-cols-7 px-4 pt-3 pb-1">
             {WEEKDAYS.map((d) => (
               <div key={d} className={`text-center text-[10px] font-mono font-bold uppercase tracking-wider ${textMuted}`}>
@@ -86,7 +86,6 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
             ))}
           </div>
 
-          {/* Day grid */}
           <div className="grid grid-cols-7 px-4 pb-4">
             {Array.from({ length: firstDay }).map((_, i) => (
               <div key={`empty-${i}`} />
@@ -171,14 +170,22 @@ function SessionDetail({
     session.exercises.map((e) => ({ ...e }))
   );
 
+  const routine = getRoutineForProfile(profile);
+  const routineDay = routine.find((d) => d.id === session.dayId);
+  const availableExercises = routineDay
+    ? routineDay.exercises.filter(
+        (re) => !exercises.some((e) => e.exerciseName === re.name)
+      )
+    : [];
+
   const cardBg = isDark ? "bg-zinc-900/50 border-zinc-800/60" : "bg-white border-zinc-200";
   const textPrimary = isDark ? "text-zinc-100" : "text-zinc-900";
   const textMuted = isDark ? "text-zinc-500" : "text-zinc-400";
 
   const updateExercise = (idx: number, field: keyof ExerciseLog, value: string | boolean) => {
     setExercises((prev) => {
-      const next = prev.map((e) => ({ ...e }));
-      (next[idx] as Record<string, unknown>)[field] = value;
+      const next = prev.map((e) => ({ ...e })) as ExerciseLog[];
+      (next[idx] as unknown as Record<string, unknown>)[field] = value;
       return next;
     });
   };
@@ -189,6 +196,31 @@ function SessionDetail({
     onUpdated();
   };
 
+  const handleDeleteExercise = (idx: number) => {
+    setExercises((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleDeleteDay = () => {
+    deleteSession(profile, session.date);
+    onUpdated();
+  };
+
+  const handleAddExercise = (name: string) => {
+    const newLog: ExerciseLog = {
+      exerciseName: name,
+      set1Weight: "",
+      topSetWeight: "",
+      topSetReps: "",
+      set3Weight: "",
+      set4Weight: "",
+      warmupEnabled: false,
+      warmupWeight: "",
+      isCompleted: false,
+      unit: session.exercises[0]?.unit || "kg",
+    };
+    setExercises((prev) => [...prev, newLog]);
+  };
+
   const dateFormatted = new Date(session.date + "T12:00:00").toLocaleDateString("es-ES", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
@@ -196,35 +228,55 @@ function SessionDetail({
   return (
     <div className={`border rounded-2xl overflow-hidden ${cardBg}`}>
       <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? "border-zinc-800" : "border-zinc-100"}`}>
-        <div>
+        <div className="flex-1 min-w-0">
           <h3 className={`text-sm font-black ${textPrimary}`}>{session.dayTitle}</h3>
           <p className={`text-[10px] font-mono ${textMuted}`}>{dateFormatted}</p>
         </div>
-        {!editing ? (
-          <button
-            onClick={() => setEditing(true)}
-            className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors ${
-              isDark
-                ? "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-                : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-            }`}
-          >
-            Editar
-          </button>
-        ) : (
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-500 text-white border border-pink-400"
-          >
-            <Save size={12} />
-            Guardar
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+          {editing && (
+            <button
+              onClick={handleDeleteDay}
+              className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+          {!editing ? (
+            <button
+              onClick={() => setEditing(true)}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors ${
+                isDark
+                  ? "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                  : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Editar
+            </button>
+          ) : (
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-500 text-white border border-pink-400"
+            >
+              <Save size={12} />
+              Guardar
+            </button>
+          )}
+        </div>
       </div>
       <div className="p-4 space-y-2">
         {exercises.map((ex, idx) => (
-          <div key={idx} className={`border rounded-xl p-3 ${isDark ? "border-zinc-800" : "border-zinc-100"}`}>
-            <p className={`text-xs font-bold mb-2 ${textPrimary}`}>{ex.exerciseName}</p>
+          <div key={idx} className={`border rounded-xl p-3 relative ${isDark ? "border-zinc-800" : "border-zinc-100"}`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className={`text-xs font-bold ${textPrimary}`}>{ex.exerciseName}</p>
+              {editing && (
+                <button
+                  onClick={() => handleDeleteExercise(idx)}
+                  className="p-1 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
             <div className="space-y-1.5">
               <SetRow label="Top Set" weight={ex.topSetWeight} reps={ex.topSetReps} unit={ex.unit}
                 editing={editing}
@@ -232,14 +284,14 @@ function SessionDetail({
                 onRepsChange={(v) => updateExercise(idx, "topSetReps", v)}
                 isDark={isDark}
               />
-              {ex.set3Weight && (
+              {ex.set3Weight !== undefined && (
                 <SetRow label="Back-off 1" weight={ex.set3Weight} reps="" unit={ex.unit}
                   editing={editing}
                   onWeightChange={(v) => updateExercise(idx, "set3Weight", v)}
                   isDark={isDark}
                 />
               )}
-              {ex.set4Weight && (
+              {ex.set4Weight !== undefined && (
                 <SetRow label="Back-off 2" weight={ex.set4Weight} reps="" unit={ex.unit}
                   editing={editing}
                   onWeightChange={(v) => updateExercise(idx, "set4Weight", v)}
@@ -249,7 +301,61 @@ function SessionDetail({
             </div>
           </div>
         ))}
+
+        {/* Add Exercise */}
+        {editing && availableExercises.length > 0 && (
+          <div className="pt-2">
+            <AddExerciseDropdown
+              exercises={availableExercises.map((e) => e.name)}
+              onSelect={handleAddExercise}
+              isDark={isDark}
+            />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function AddExerciseDropdown({
+  exercises, onSelect, isDark,
+}: {
+  exercises: string[];
+  onSelect: (name: string) => void;
+  isDark: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-colors w-full ${
+          isDark
+            ? "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+        }`}
+      >
+        <Plus size={12} />
+        Añadir Ejercicio
+      </button>
+      {open && (
+        <div className={`absolute bottom-full mb-1 left-0 right-0 z-10 rounded-xl border shadow-lg max-h-48 overflow-y-auto ${
+          isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"
+        }`}>
+          {exercises.map((name) => (
+            <button
+              key={name}
+              onClick={() => { onSelect(name); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors hover:bg-pink-500/10 ${
+                isDark ? "text-zinc-300 hover:text-white" : "text-zinc-700 hover:text-zinc-900"
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
