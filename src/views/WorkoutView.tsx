@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
-  ChevronRight, Plus, Minus, Sparkles, Info, Flame,
+  ChevronRight, Plus, Minus, Sparkles, Info, Flame, X,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
@@ -46,15 +46,17 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
 
   const [phase, setPhase] = useState<Phase>("select");
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const [showModePicker, setShowModePicker] = useState(false);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [exerciseStates, setExerciseStates] = useState<ExerciseExecutionState[]>([]);
 
   const selectedDay = routine.find((d) => d.id === selectedDayId) || null;
 
-  const startWorkout = (dayId: string) => {
-    const day = routine.find((d) => d.id === dayId);
+  const startWorkout = (id: string, mode: TimerMode) => {
+    const day = routine.find((d) => d.id === id);
     if (!day) return;
-    setSelectedDayId(dayId);
+    onTimerModeChange(mode);
+    setSelectedDayId(id);
     setCurrentExIdx(0);
     setExerciseStates(
       day.exercises.map(() => ({
@@ -68,6 +70,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         set4Weight: "",
       }))
     );
+    setShowModePicker(false);
     setPhase("execution");
   };
 
@@ -126,12 +129,9 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     return (
       <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
         <div className="flex-1 max-w-2xl mx-auto w-full px-4 pt-6 pb-28 space-y-5 overflow-y-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-xs font-mono uppercase tracking-widest ${textMuted}`}>Workout</p>
-              <h1 className={`text-3xl font-black tracking-tighter ${textPrimary}`}>Elige tu entrenamiento</h1>
-            </div>
-            <TimerModePill mode={timerMode} onChange={onTimerModeChange} isDark={isDark} />
+          <div>
+            <p className={`text-xs font-mono uppercase tracking-widest ${textMuted}`}>Workout</p>
+            <h1 className={`text-3xl font-black tracking-tighter ${textPrimary}`}>Elige tu entrenamiento</h1>
           </div>
 
           <div className="space-y-3">
@@ -140,16 +140,16 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                 key={day.id}
                 id={`select-day-${day.id}`}
                 onClick={() => setSelectedDayId(day.id)}
-                className={`w-full text-left rounded-2xl overflow-hidden relative group transition-all ${
+                className={`w-full text-left rounded-2xl overflow-hidden relative transition-all ${
                   selectedDayId === day.id
-                    ? "ring-2 ring-pink-500 ring-offset-2 ring-offset-zinc-950"
+                    ? "ring-2 ring-pink-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950"
                     : ""
                 } ${isDark ? "shadow-black/30" : "shadow-zinc-200/80"}`}
                 style={{ minHeight: "120px" }}
               >
-                <div className={`absolute inset-0 ${isDark ? "bg-zinc-900" : "bg-white border border-zinc-200"} rounded-2xl`} />
-                <div className={`absolute inset-0 bg-gradient-to-r ${accentGradient} opacity-50 rounded-2xl`} />
-                <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? "from-zinc-950/90 via-zinc-950/50 to-transparent" : "from-white/95 via-white/70 to-transparent"} rounded-2xl`} />
+                <div className={`absolute inset-0 ${isDark ? "bg-zinc-900" : "bg-white border border-zinc-200"} rounded-2xl pointer-events-none`} />
+                <div className={`absolute inset-0 bg-gradient-to-r ${accentGradient} opacity-50 rounded-2xl pointer-events-none`} />
+                <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? "from-zinc-950/90 via-zinc-950/50 to-transparent" : "from-white/95 via-white/70 to-transparent"} rounded-2xl pointer-events-none`} />
                 <div className="relative p-5 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -182,13 +182,13 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         </div>
 
-        {/* Start CTA */}
+        {/* Start CTA — opens mode picker instead of starting directly */}
         {selectedDayId && (
           <div className="fixed bottom-0 left-0 right-0 z-20 p-4 safe-bottom">
             <div className="max-w-2xl mx-auto">
               <motion.button
                 id="start-workout-btn"
-                onClick={() => startWorkout(selectedDayId)}
+                onClick={() => setShowModePicker(true)}
                 whileTap={{ scale: 0.95 }}
                 className={`w-full py-4 rounded-2xl font-black text-base tracking-wide shadow-2xl flex items-center justify-center gap-2 ${
                   isDark
@@ -201,6 +201,96 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             </div>
           </div>
         )}
+
+        {/* ── Mode Picker Modal ───────────────────────────────── */}
+        <AnimatePresence>
+          {showModePicker && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowModePicker(false)}
+            >
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className={`w-full max-w-2xl rounded-t-3xl p-6 pb-10 ${isDark ? "bg-zinc-900" : "bg-white"}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`text-lg font-black ${textPrimary}`}>Tiempo de descanso</h2>
+                  <button
+                    onClick={() => setShowModePicker(false)}
+                    className={`p-2 rounded-xl border transition-colors ${
+                      isDark ? "border-zinc-700 text-zinc-400 hover:bg-zinc-800" : "border-zinc-200 text-zinc-500 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => startWorkout(selectedDayId!, "normal")}
+                    className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                      isDark
+                        ? "border-zinc-700 bg-zinc-800/50 hover:border-zinc-500"
+                        : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
+                    }`}
+                  >
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                      isDark ? "bg-zinc-700" : "bg-white border border-zinc-200"
+                    }`}>
+                      <Clock size={22} className="text-pink-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className={`text-base font-black ${textPrimary}`}>Modo Normal</p>
+                      <p className={`text-xs font-mono mt-0.5 ${textMuted}`}>3 minutos de descanso entre series</p>
+                    </div>
+                    <div className={`ml-auto text-xs font-mono font-bold px-3 py-1.5 rounded-full ${
+                      isDark ? "bg-zinc-700 text-zinc-300" : "bg-zinc-200 text-zinc-600"
+                    }`}>
+                      {(() => {
+                        const day = routine.find((d) => d.id === selectedDayId!);
+                        return day ? `${day.exercises.length * 8} min` : "";
+                      })()}
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => startWorkout(selectedDayId!, "fast")}
+                    className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                      isDark
+                        ? "border-zinc-700 bg-zinc-800/50 hover:border-zinc-500"
+                        : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
+                    }`}
+                  >
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                      isDark ? "bg-zinc-700" : "bg-white border border-zinc-200"
+                    }`}>
+                      <Zap size={22} className="text-amber-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className={`text-base font-black ${textPrimary}`}>Modo Rápido</p>
+                      <p className={`text-xs font-mono mt-0.5 ${textMuted}`}>2 minutos de descanso entre series</p>
+                    </div>
+                    <div className={`ml-auto text-xs font-mono font-bold px-3 py-1.5 rounded-full ${
+                      isDark ? "bg-zinc-700 text-zinc-300" : "bg-zinc-200 text-zinc-600"
+                    }`}>
+                      {(() => {
+                        const day = routine.find((d) => d.id === selectedDayId!);
+                        return day ? `${day.exercises.length * 5} min` : "";
+                      })()}
+                    </div>
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -580,32 +670,6 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── Timer Mode Pill ──────────────────────────────────────────────────
-function TimerModePill({ mode, onChange, isDark }: {
-  mode: TimerMode; onChange: (m: TimerMode) => void; isDark: boolean;
-}) {
-  return (
-    <div className={`flex items-center border rounded-2xl p-1 gap-1 ${isDark ? "bg-zinc-900/70 border-zinc-800/60" : "bg-white/80 border-zinc-200 shadow-sm"}`}>
-      <button onClick={() => onChange("normal")}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-          mode === "normal"
-            ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
-            : isDark ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-500 hover:text-zinc-800"
-        }`}>
-        <Clock size={11} /> Normal
-      </button>
-      <button onClick={() => onChange("fast")}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-          mode === "fast"
-            ? isDark ? "bg-white text-zinc-950 shadow-md" : "bg-zinc-900 text-white shadow-md"
-            : isDark ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-500 hover:text-zinc-800"
-        }`}>
-        <Zap size={11} /> Rápido
-      </button>
     </div>
   );
 }
