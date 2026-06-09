@@ -2,15 +2,11 @@ import type { ProfileId } from "@/data/routines";
 
 export interface ExerciseLog {
   exerciseName: string;
+  set1Weight: string;
   topSetWeight: string;
   topSetReps: string;
-  bo1Weight: string;
-  bo1Reps: string;
-  bo2Weight: string;
-  bo2Reps: string;
-  bo3Weight: string;
-  bo3Reps: string;
-  bo3Enabled: boolean;
+  set3Weight: string;
+  set4Weight: string;
   warmupEnabled: boolean;
   warmupWeight: string;
   isCompleted: boolean;

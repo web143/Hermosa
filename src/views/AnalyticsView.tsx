@@ -208,15 +208,11 @@ function SessionDetail({
   const handleAddExercise = (name: string) => {
     const newLog: ExerciseLog = {
       exerciseName: name,
+      set1Weight: "",
       topSetWeight: "",
       topSetReps: "",
-      bo1Weight: "",
-      bo1Reps: "",
-      bo2Weight: "",
-      bo2Reps: "",
-      bo3Weight: "",
-      bo3Reps: "",
-      bo3Enabled: false,
+      set3Weight: "",
+      set4Weight: "",
       warmupEnabled: false,
       warmupWeight: "",
       isCompleted: false,
@@ -288,23 +284,17 @@ function SessionDetail({
                 onRepsChange={(v) => updateExercise(idx, "topSetReps", v)}
                 isDark={isDark}
               />
-              <SetRow label="Back-off 1" weight={ex.bo1Weight} reps={ex.bo1Reps} unit={ex.unit}
-                editing={editing}
-                onWeightChange={(v) => updateExercise(idx, "bo1Weight", v)}
-                onRepsChange={(v) => updateExercise(idx, "bo1Reps", v)}
-                isDark={isDark}
-              />
-              <SetRow label="Back-off 2" weight={ex.bo2Weight} reps={ex.bo2Reps} unit={ex.unit}
-                editing={editing}
-                onWeightChange={(v) => updateExercise(idx, "bo2Weight", v)}
-                onRepsChange={(v) => updateExercise(idx, "bo2Reps", v)}
-                isDark={isDark}
-              />
-              {ex.bo3Enabled && (
-                <SetRow label="Back-off 3" weight={ex.bo3Weight} reps={ex.bo3Reps} unit={ex.unit}
+              {ex.set3Weight !== undefined && (
+                <SetRow label="Back-off 1" weight={ex.set3Weight} reps="" unit={ex.unit}
                   editing={editing}
-                  onWeightChange={(v) => updateExercise(idx, "bo3Weight", v)}
-                  onRepsChange={(v) => updateExercise(idx, "bo3Reps", v)}
+                  onWeightChange={(v) => updateExercise(idx, "set3Weight", v)}
+                  isDark={isDark}
+                />
+              )}
+              {ex.set4Weight !== undefined && (
+                <SetRow label="Back-off 2" weight={ex.set4Weight} reps="" unit={ex.unit}
+                  editing={editing}
+                  onWeightChange={(v) => updateExercise(idx, "set4Weight", v)}
                   isDark={isDark}
                 />
               )}

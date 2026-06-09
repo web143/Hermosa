@@ -6,36 +6,28 @@ export type ProfileId = "haniel" | "ella";
 
 export interface WorkoutLog {
   id?: number;
-  date: string;
+  date: string;          // YYYY-MM-DD
   timestamp: number;
   profile: ProfileId;
-  dayId: string;
+  dayId: string;         // e.g. "haniel_day1"
   exerciseName: string;
+  set1Weight: string;
   topSetWeight: string;
   topSetReps: string;
-  bo1Weight: string;
-  bo1Reps: string;
-  bo2Weight: string;
-  bo2Reps: string;
-  bo3Weight: string;
-  bo3Reps: string;
-  bo3Enabled: boolean;
+  set3Weight: string;
+  set4Weight: string;
   unit: "kg" | "lbs";
 }
 
 export interface SetInputRecord {
-  key: string;
+  key: string;           // `${profile}_${exerciseName_normalized}`
   profile: ProfileId;
   exerciseName: string;
+  set1Weight: string;
   topSetWeight: string;
   topSetReps: string;
-  bo1Weight: string;
-  bo1Reps: string;
-  bo2Weight: string;
-  bo2Reps: string;
-  bo3Weight: string;
-  bo3Reps: string;
-  bo3Enabled: boolean;
+  set3Weight: string;
+  set4Weight: string;
   warmupEnabled: boolean;
   isCompleted: boolean;
 }
