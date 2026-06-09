@@ -53,7 +53,7 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
   const verseIndex = (new Date().getDate() - 1) % VERSES.length;
   const dailyVerse = VERSES[verseIndex];
 
-  const bg = isDark ? "bg-zinc-950" : "bg-zinc-50";
+  const bg = isDark ? "bg-zinc-950" : "bg-gradient-to-b from-pink-50/60 via-white to-white";
   const textPrimary = isDark ? "text-zinc-100" : "text-zinc-900";
   const textSecondary = isDark ? "text-zinc-400" : "text-zinc-500";
   const textMuted = isDark ? "text-zinc-600" : "text-zinc-400";
@@ -130,24 +130,22 @@ export default function HomeView({ profile, theme }: HomeViewProps) {
         </div>
 
         {/* ── Premium Daily Bible Verse ─────────────────────────── */}
-        <div className="relative">
-          {/* Pink/fuchsia gradient glow behind the card */}
-          <div className={`absolute -inset-6 bg-gradient-to-br from-pink-500/25 via-fuchsia-500/15 to-transparent rounded-3xl blur-3xl pointer-events-none`} />
-          <div className={`relative border rounded-2xl p-5 ${cardBg}`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                isDark ? "bg-zinc-800" : "bg-zinc-100"
-              }`}>
-                <Quote size={16} className={isDark ? "text-zinc-400" : "text-zinc-500"} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-base font-semibold leading-relaxed ${textPrimary}`}>
-                  "{dailyVerse.text}"
-                </p>
-                <p className={`text-xs font-mono mt-2 ${textSecondary}`}>
-                  — {dailyVerse.ref} <span className={textMuted}>(NVI)</span>
-                </p>
-              </div>
+        <div className={`border rounded-2xl px-5 py-7 ${cardBg} ${
+          isDark ? "" : "border-pink-200/40 shadow-[inset_0_0_12px_rgba(236,72,153,0.08)]"
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+              isDark ? "bg-zinc-800" : "bg-zinc-100"
+            }`}>
+              <Quote size={16} className={isDark ? "text-zinc-400" : "text-zinc-500"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-base font-semibold leading-relaxed ${textPrimary}`}>
+                "{dailyVerse.text}"
+              </p>
+              <p className={`text-xs font-mono mt-3 ${textSecondary}`}>
+                — {dailyVerse.ref} <span className={textMuted}>(NVI)</span>
+              </p>
             </div>
           </div>
         </div>
