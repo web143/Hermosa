@@ -5,7 +5,7 @@
   --color-zinc-900: #18181b;
   --color-zinc-800: #27272a;
   --color-zinc-850: #1f1f22;
-  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
+  --font-sans: "Poppins", system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   --animate-fade-in: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
