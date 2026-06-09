@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef } from "react";
-import { ChevronLeft, ChevronRight, Trophy, Flame, Target, Plus, Minus, Save, Trash2, X, RotateCcw } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Trophy, Flame, Target, Plus, Minus, Save, Trash2, X } from "lucide-react";
 import type { ProfileId } from "@/data/routines";
 import { getRoutineForProfile } from "@/data/routines";
-import { getSessions, getSessionByDate, updateSessionExercises, deleteSession, addSession, getTotalSessions, getCurrentStreak, getTopMuscle } from "@/db/profileStore";
+import { getSessions, getSessionByDate, updateSessionExercises, deleteSession, getTotalSessions, getCurrentStreak, getTopMuscle } from "@/db/profileStore";
 import type { ExerciseLog, DaySession } from "@/db/profileStore";
 
 interface AnalyticsViewProps {
@@ -19,30 +19,15 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ── Undo Delete State ──────────────────────────────────────
-  const [undoToast, setUndoToast] = useState<{ session: DaySession } | null>(null);
-  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Delete Confirmation Modal ──────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<DaySession | null>(null);
 
-  const handleDeleteWithUndo = (session: DaySession) => {
-    deleteSession(profile, session.date);
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteSession(profile, deleteTarget.date);
     setSelectedDate(null);
     setRefreshKey((k) => k + 1);
-    setUndoToast({ session });
-    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
-    undoTimeoutRef.current = setTimeout(() => {
-      setUndoToast(null);
-      undoTimeoutRef.current = null;
-    }, 5000);
-  };
-
-  const handleUndoDelete = () => {
-    if (!undoToast) return;
-    addSession(profile, undoToast.session);
-    setUndoToast(null);
-    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
-    undoTimeoutRef.current = null;
-    setSelectedDate(undoToast.session.date);
-    setRefreshKey((k) => k + 1);
+    setDeleteTarget(null);
   };
 
   const year = currentDate.getFullYear();
@@ -163,7 +148,7 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
             profile={profile}
             theme={theme}
             onRefresh={() => setRefreshKey((k) => k + 1)}
-            onDeleteWithUndo={handleDeleteWithUndo}
+            onDeleteRequest={(s) => setDeleteTarget(s)}
           />
         )}
 
@@ -180,19 +165,35 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
           </div>
         )}
 
-        {/* ── Undo Toast ──────────────────────────────────────── */}
-        {undoToast && (
-          <div className="fixed bottom-24 left-4 right-4 z-50 max-w-2xl mx-auto">
-            <div className={`rounded-2xl border px-4 py-3 flex items-center justify-between shadow-2xl backdrop-blur-xl ${
-              isDark ? "bg-zinc-900/95 border-zinc-700 text-zinc-100" : "bg-white/95 border-zinc-200 text-zinc-900"
-            }`}>
-              <p className="text-xs font-bold">Sesión eliminada.</p>
-              <button
-                onClick={handleUndoDelete}
-                className="flex items-center gap-1 text-xs font-black text-pink-500 hover:text-pink-400 transition-colors active:scale-90"
-              >
-                <RotateCcw size={12} /> RECUPERAR
-              </button>
+        {/* ── Delete Confirmation Modal ──────────────────────── */}
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className={`mx-4 w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-200"}`}>
+              <h2 className={`text-lg font-black tracking-tight text-center mb-2 ${textPrimary}`}>
+                ¿Estás seguro?
+              </h2>
+              <p className={`text-xs font-mono text-center mb-6 leading-relaxed ${textMuted}`}>
+                ¿Estás seguro de que deseas eliminar permanentemente esta rutina del historial?
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={confirmDelete}
+                  className="w-full py-4 rounded-2xl font-black text-sm tracking-wide bg-red-500 text-white border border-red-400 transition-all active:scale-95 shadow-md"
+                >
+                  <Trash2 size={15} className="inline mr-2" />
+                  Eliminar
+                </button>
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  className={`w-full py-4 rounded-2xl font-black text-sm tracking-wide border transition-all active:scale-95 ${
+                    isDark
+                      ? "bg-zinc-800 text-zinc-300 border-zinc-700"
+                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                  }`}
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -202,13 +203,13 @@ export default function AnalyticsView({ profile, theme }: AnalyticsViewProps) {
 }
 
 function SessionDetail({
-  session, profile, theme, onRefresh, onDeleteWithUndo,
+  session, profile, theme, onRefresh, onDeleteRequest,
 }: {
   session: NonNullable<ReturnType<typeof getSessionByDate>>;
   profile: ProfileId;
   theme: "light" | "dark";
   onRefresh: () => void;
-  onDeleteWithUndo: (session: DaySession) => void;
+  onDeleteRequest: (session: DaySession) => void;
 }) {
   const isDark = theme === "dark";
   const [editing, setEditing] = useState(false);
@@ -247,7 +248,7 @@ function SessionDetail({
   };
 
   const handleDeleteDay = () => {
-    onDeleteWithUndo(session);
+    onDeleteRequest(session);
   };
 
   const handleAddExercise = (name: string) => {
@@ -327,23 +328,29 @@ function SessionDetail({
               )}
             </div>
             <div className="space-y-1.5">
-              <SetRow label="Top Set" weight={ex.topSetWeight} reps={ex.topSetReps} unit={ex.unit}
+              <SetRow label="Top Set 1" weight={ex.topSetWeight} reps={ex.topSetReps} unit={ex.unit}
                 editing={editing}
                 onWeightChange={(v) => updateExercise(idx, "topSetWeight", v)}
                 onRepsChange={(v) => updateExercise(idx, "topSetReps", v)}
                 isDark={isDark}
               />
-              {ex.set3Weight !== undefined && (
-                <SetRow label="Set 2" weight={ex.set3Weight} reps="" unit={ex.unit}
+              <SetRow label="Set 2" weight={ex.set3Weight} reps={ex.set3Reps || ""} unit={ex.unit}
+                editing={editing}
+                onWeightChange={(v) => updateExercise(idx, "set3Weight", v)}
+                onRepsChange={(v) => updateExercise(idx, "set3Reps", v)}
+                isDark={isDark}
+              />
+              <SetRow label="Set 3" weight={ex.set4Weight} reps={ex.set4Reps || ""} unit={ex.unit}
+                editing={editing}
+                onWeightChange={(v) => updateExercise(idx, "set4Weight", v)}
+                onRepsChange={(v) => updateExercise(idx, "set4Reps", v)}
+                isDark={isDark}
+              />
+              {ex.set5Weight !== undefined && (
+                <SetRow label="Set 4 (Opcional)" weight={ex.set5Weight || ""} reps={ex.set5Reps || ""} unit={ex.unit}
                   editing={editing}
-                  onWeightChange={(v) => updateExercise(idx, "set3Weight", v)}
-                  isDark={isDark}
-                />
-              )}
-              {ex.set4Weight !== undefined && (
-                <SetRow label="Set 3" weight={ex.set4Weight} reps="" unit={ex.unit}
-                  editing={editing}
-                  onWeightChange={(v) => updateExercise(idx, "set4Weight", v)}
+                  onWeightChange={(v) => updateExercise(idx, "set5Weight", v)}
+                  onRepsChange={(v) => updateExercise(idx, "set5Reps", v)}
                   isDark={isDark}
                 />
               )}
