@@ -238,11 +238,36 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
       setRepeatIsSameDay(dayId === todaySession.dayId);
       return;
     }
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      try {
+        const saved = JSON.parse(raw);
+        if (saved.selectedDayId === dayId && saved.hasStartedWorkout) {
+          setSelectedDayId(saved.selectedDayId);
+          setCurrentExIdx(saved.currentExIdx);
+          setExerciseStates(saved.exerciseStates);
+          setHasStartedWorkout(true);
+          setPhase("prepare");
+          return;
+        }
+      } catch { /* ignore */ }
+    }
     setSelectedDayId(dayId);
     setPhase("prepare");
   };
 
   const backToSelect = () => {
+    if (hasStartedWorkout && selectedDayId) {
+      const snapshot = {
+        selectedDayId,
+        currentExIdx,
+        exerciseStates,
+        phase: "execution" as Phase,
+        hasStartedWorkout: true,
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+      setSavedSession(snapshot);
+    }
     setSelectedDayId(null);
     setPhase("select");
     setHasStartedWorkout(false);
