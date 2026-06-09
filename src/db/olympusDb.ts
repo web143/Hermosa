@@ -1,136 +1,157 @@
+// ============================================================
+// GYM APP — IndexedDB Persistence Layer (Offline-First)
+// ============================================================
+
+export type ProfileId = "haniel" | "ella";
+
 export interface WorkoutLog {
   id?: number;
-  date: string; // YYYY-MM-DD
+  date: string;          // YYYY-MM-DD
   timestamp: number;
-  profile: "haniel" | "novia";
+  profile: ProfileId;
+  dayId: string;         // e.g. "haniel_day1"
   exerciseName: string;
-  set1Kg: string;
-  topSetKg: string;
+  set1Weight: string;
+  topSetWeight: string;
   topSetReps: string;
-  set3Kg: string;
-  set4Kg: string;
+  set3Weight: string;
+  set4Weight: string;
+  unit: "kg" | "lbs";
 }
 
 export interface SetInputRecord {
-  key: string; // `${profile}_${exerciseName}`
-  profile: "haniel" | "novia";
+  key: string;           // `${profile}_${exerciseName_normalized}`
+  profile: ProfileId;
   exerciseName: string;
-  set1Kg: string;
-  topSetKg: string;
+  set1Weight: string;
+  topSetWeight: string;
   topSetReps: string;
-  set3Kg: string;
-  set4Kg: string;
+  set3Weight: string;
+  set4Weight: string;
+  warmupEnabled: boolean;
   isCompleted: boolean;
 }
 
-class OlympusDb {
-  private dbName = "olympus_database";
-  private version = 1;
+class GymDb {
+  private dbName = "gym_database";
+  private version = 2;
   private db: IDBDatabase | null = null;
 
-  // Open database
   private openDb(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      if (this.db) {
-        resolve(this.db);
-        return;
-      }
+      if (this.db) { resolve(this.db); return; }
 
       const request = indexedDB.open(this.dbName, this.version);
 
-      request.onerror = () => {
-        reject(request.error);
-      };
+      request.onerror = () => reject(request.error);
 
       request.onsuccess = () => {
         this.db = request.result;
         resolve(request.result);
       };
 
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (event) => {
         const db = request.result;
-        // Store current inputs of current active sessions
-        if (!db.objectStoreNames.contains("set_inputs")) {
-          db.createObjectStore("set_inputs", { keyPath: "key" });
-        }
-        // Store historical completed exercises for tracking overload progress over time
-        if (!db.objectStoreNames.contains("workout_logs")) {
-          const store = db.createObjectStore("workout_logs", {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          store.createIndex("profile", "profile", { unique: false });
-          store.createIndex("exerciseName", "exerciseName", { unique: false });
-          store.createIndex("date", "date", { unique: false });
+        const oldVersion = event.oldVersion;
+
+        if (oldVersion < 1) {
+          // Current exercise input states
+          if (!db.objectStoreNames.contains("set_inputs")) {
+            db.createObjectStore("set_inputs", { keyPath: "key" });
+          }
+          // Historical completed logs
+          if (!db.objectStoreNames.contains("workout_logs")) {
+            const store = db.createObjectStore("workout_logs", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            store.createIndex("profile", "profile", { unique: false });
+            store.createIndex("exerciseName", "exerciseName", { unique: false });
+            store.createIndex("date", "date", { unique: false });
+            store.createIndex("dayId", "dayId", { unique: false });
+          }
         }
       };
     });
   }
 
-  // Save current active input states
+  // ─── Set Inputs ───────────────────────────────────────────────────────────
   async saveSetInputs(record: SetInputRecord): Promise<void> {
     const db = await this.openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("set_inputs", "readwrite");
       const store = tx.objectStore("set_inputs");
-      const request = store.put(record);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      const req = store.put(record);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
     });
   }
 
-  // Get current active inputs
-  async getSetInputs(profile: "haniel" | "novia", exerciseName: string): Promise<SetInputRecord | null> {
+  async getSetInputs(profile: ProfileId, exerciseName: string): Promise<SetInputRecord | null> {
     const db = await this.openDb();
     const key = `${profile}_${exerciseName.replace(/\s+/g, "_").toLowerCase()}`;
     return new Promise((resolve, reject) => {
       const tx = db.transaction("set_inputs", "readonly");
       const store = tx.objectStore("set_inputs");
-      const request = store.get(key);
-
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
     });
   }
 
-  // Log a historical completed workout set
+  // ─── Workout Logs ─────────────────────────────────────────────────────────
   async addWorkoutLog(log: WorkoutLog): Promise<void> {
     const db = await this.openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("workout_logs", "readwrite");
       const store = tx.objectStore("workout_logs");
-      const request = store.add(log);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      const req = store.add(log);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
     });
   }
 
-  // Get all completed logs for a profile
-  async getLogsByProfile(profile: "haniel" | "novia"): Promise<WorkoutLog[]> {
+  async getLogsByProfile(profile: ProfileId): Promise<WorkoutLog[]> {
     const db = await this.openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("workout_logs", "readonly");
       const store = tx.objectStore("workout_logs");
       const index = store.index("profile");
-      const request = index.getAll(profile);
-
-      request.onsuccess = () => {
-        // Sort by timestamp descending
-        const sorted = (request.result || []).sort(
-          (a, b) => b.timestamp - a.timestamp
-        );
+      const req = index.getAll(profile);
+      req.onsuccess = () => {
+        const sorted = (req.result || []).sort((a, b) => b.timestamp - a.timestamp);
         resolve(sorted);
       };
-      request.onerror = () => reject(request.error);
+      req.onerror = () => reject(req.error);
     });
   }
 
-  // Clear all data for a specific profile (resets everything)
-  async clearProfileData(profile: "haniel" | "novia", exercises: string[]): Promise<void> {
+  async deleteWorkoutLog(id: number): Promise<void> {
     const db = await this.openDb();
-    
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("workout_logs", "readwrite");
+      const store = tx.objectStore("workout_logs");
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async updateWorkoutLog(log: WorkoutLog): Promise<void> {
+    const db = await this.openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("workout_logs", "readwrite");
+      const store = tx.objectStore("workout_logs");
+      const req = store.put(log);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // ─── Profile Reset ────────────────────────────────────────────────────────
+  async clearProfileData(profile: ProfileId, exercises: string[]): Promise<void> {
+    const db = await this.openDb();
+
     // Clear active inputs
     const txInputs = db.transaction("set_inputs", "readwrite");
     const storeInputs = txInputs.objectStore("set_inputs");
@@ -144,20 +165,15 @@ class OlympusDb {
       const txLogs = db.transaction("workout_logs", "readwrite");
       const storeLogs = txLogs.objectStore("workout_logs");
       const index = storeLogs.index("profile");
-      const request = index.openCursor(profile);
-
-      request.onsuccess = (event) => {
+      const req = index.openCursor(profile);
+      req.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-        if (cursor) {
-          cursor.delete();
-          cursor.continue();
-        } else {
-          resolve();
-        }
+        if (cursor) { cursor.delete(); cursor.continue(); }
+        else resolve();
       };
-      request.onerror = () => reject(request.error);
+      req.onerror = () => reject(req.error);
     });
   }
 }
 
-export const olympusDb = new OlympusDb();
+export const gymDb = new GymDb();

@@ -1,349 +1,391 @@
-import ExerciseCard from "@/components/ExerciseCard";
-import { LogOut, BarChart2, Shield, Calendar, History, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { olympusDb } from "@/db/olympusDb";
+import { LogOut, Settings, BarChart2, History, ChevronRight, Flame, Trophy } from "lucide-react";
+import { getRoutineForProfile, getImageSrc } from "@/data/routines";
+import type { ProfileId, RoutineDay } from "@/data/routines";
+import { gymDb } from "@/db/olympusDb";
 import type { WorkoutLog } from "@/db/olympusDb";
 
 interface DashboardProps {
-  profile: "haniel" | "novia";
+  profile: ProfileId;
+  unit: "kg" | "lbs";
+  onToggleUnit: () => void;
   onLogout: () => void;
+  onSelectDay: (day: RoutineDay) => void;
 }
 
-interface ExerciseConfig {
-  name: string;
-  restTime: number;
-  isSuperset?: boolean;
-  isDropset?: boolean;
-}
+export default function Dashboard({ profile, unit, onToggleUnit, onLogout, onSelectDay }: DashboardProps) {
+  const isElla = profile === "ella";
+  const accentColor = isElla ? "pink" : "amber";
+  const routine = getRoutineForProfile(profile);
 
-interface RoutineDay {
-  day: string;
-  exercises: ExerciseConfig[];
-}
-
-export default function Dashboard({ profile, onLogout }: DashboardProps) {
-  const isHaniel = profile === "haniel";
-  const [completedCount, setCompletedCount] = useState<number>(0);
-  const [totalCount, setTotalCount] = useState<number>(0);
   const [historyLogs, setHistoryLogs] = useState<WorkoutLog[]>([]);
-  const [unit, setUnit] = useState<"kg" | "lbs">(
-    (localStorage.getItem("olympus_weight_unit") as "kg" | "lbs") || "kg"
-  );
+  const [showHistory, setShowHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
-  const toggleUnit = () => {
-    const nextUnit = unit === "kg" ? "lbs" : "kg";
-    setUnit(nextUnit);
-    localStorage.setItem("olympus_weight_unit", nextUnit);
-  };
-
-  // Define routines
-  const hanielRoutine: RoutineDay[] = [
-    {
-      day: "🦵 DÍA 1) Legs | Glutes & Hamstrings",
-      exercises: [
-        { name: "Barbell Hip Thrust", restTime: 2 },
-        { name: "Barbell RDL (Rumano)", restTime: 2 },
-        { name: "Deficit Reverse Lunge", restTime: 2 },
-        { name: "Glute Medius Kickback", restTime: 2 },
-      ],
-    },
-    {
-      day: "🎯 DÍA 2) Push | Shoulders, Chest, Triceps",
-      exercises: [
-        { name: "Barbell Strict Press", restTime: 2 },
-        { name: "Cable Rope Tricep Pushdown", restTime: 2, isSuperset: true },
-        { name: "Cable Diamond Front Raise", restTime: 2, isSuperset: true },
-        { name: "Low Cable Chest Fly / Seated Press", restTime: 2 },
-        { name: "Half Kneeling Single Arm Press", restTime: 2 },
-        { name: "Overhead DB Tricep Extension", restTime: 2 },
-      ],
-    },
-    {
-      day: "🦵 DÍA 3) Legs | Quads & Calves",
-      exercises: [
-        { name: "Barbell Back Squat", restTime: 2 },
-        { name: "Narrow and Low Stance Leg Press", restTime: 2 },
-        { name: "Alternating Steps", restTime: 2 },
-        { name: "DB Squat o Leg Extension", restTime: 2, isSuperset: true },
-        { name: "DB Calf Raise", restTime: 2, isSuperset: true },
-      ],
-    },
-    {
-      day: "📐 DÍA 4) Pull | Back & Biceps",
-      exercises: [
-        { name: "Dead Stop Row (Barbell Bent Over)", restTime: 2 },
-        { name: "Bent Over Reverse Fly", restTime: 2, isSuperset: true },
-        { name: "Hammer to Wide Bicep Curl", restTime: 2, isSuperset: true },
-        { name: "Lat Pulldown Dropset (8-12 reps al fallo ➔ 4,6,8,10)", restTime: 2, isDropset: true },
-        { name: "Cable Rope Bicep Curl", restTime: 2 },
-        { name: "Single Arm Bent Over Row", restTime: 2 },
-      ],
-    },
-  ];
-
-  const hermosaRoutine: RoutineDay[] = [
-    {
-      day: "🦵 DÍA 1) Legs | Glutes & Hamstrings Focus",
-      exercises: [
-        { name: "Barbell Hip Thrust", restTime: 2 },
-        { name: "Barbell RDL (Rumano)", restTime: 2 },
-        { name: "Deficit Reverse Lunge", restTime: 2 },
-        { name: "Glute Medius Kickback", restTime: 2 },
-      ],
-    },
-    {
-      day: "🌸 DÍA 2) Upper Body | Tone & Strength",
-      exercises: [
-        { name: "Dumbbell Shoulder Press", restTime: 2 },
-        { name: "Cable Face Pull", restTime: 2 },
-        { name: "Incline Dumbbell Chest Press", restTime: 2 },
-        { name: "Tricep Overhead Extension", restTime: 2 },
-        { name: "Dumbbell Hammer Curl", restTime: 2 },
-      ],
-    },
-    {
-      day: "🦵 DÍA 3) Legs | Quads & Calves Accent",
-      exercises: [
-        { name: "Goblet Squat (Heavy)", restTime: 2 },
-        { name: "Leg Press (Low Foot Placement)", restTime: 2 },
-        { name: "Walking Lunges", restTime: 2 },
-        { name: "Leg Extension", restTime: 2 },
-        { name: "Calf Raises (Smith Machine)", restTime: 2 },
-      ],
-    },
-    {
-      day: "📐 DÍA 4) Pull | Back Shaping & Core",
-      exercises: [
-        { name: "Lat Pulldown (Wide Grip)", restTime: 2 },
-        { name: "Seated Cable Row", restTime: 2 },
-        { name: "Bent Over Reverse Fly", restTime: 2 },
-        { name: "Hanging Knee Raises", restTime: 2 },
-        { name: "Plank Hold", restTime: 2 },
-      ],
-    },
-  ];
-
-  const currentRoutine = isHaniel ? hanielRoutine : hermosaRoutine;
-  const allExerciseNames = currentRoutine.flatMap((r) => r.exercises.map((e) => e.name));
-
-  // Fetch stats and history
-  const loadDatabaseStates = async () => {
+  const loadHistory = async () => {
     try {
-      let completed = 0;
-      let total = 0;
-
-      // Scan and calculate active inputs
-      for (const day of currentRoutine) {
-        for (const ex of day.exercises) {
-          total++;
-          const record = await olympusDb.getSetInputs(profile, ex.name);
-          if (record && record.isCompleted) {
-            completed++;
-          }
-        }
-      }
-
-      setCompletedCount(completed);
-      setTotalCount(total);
-
-      // Fetch history logs
-      const logs = await olympusDb.getLogsByProfile(profile);
+      const logs = await gymDb.getLogsByProfile(profile);
       setHistoryLogs(logs);
     } catch (e) {
-      console.error("Error loading offline database states", e);
+      console.error("Error loading history", e);
     }
   };
 
   useEffect(() => {
-    loadDatabaseStates();
+    loadHistory();
+    const handler = () => loadHistory();
+    window.addEventListener("gym_db_update", handler);
+    return () => window.removeEventListener("gym_db_update", handler);
+  }, [profile]);
 
-    // Listen to updates from ExerciseCard completed triggers
-    const handleUpdate = () => {
-      loadDatabaseStates();
-    };
-
-    window.addEventListener("olympus_db_update", handleUpdate);
-    return () => {
-      window.removeEventListener("olympus_db_update", handleUpdate);
-    };
-  }, [profile, currentRoutine]);
-
-  // Reset database values
-  const resetAll = async () => {
-    if (confirm("¿Estás seguro de reiniciar todas las marcas e historial de este perfil?")) {
-      await olympusDb.clearProfileData(profile, allExerciseNames);
-      loadDatabaseStates();
+  const handleDeleteLog = async (id: number) => {
+    if (confirm("¿Eliminar este registro del historial?")) {
+      await gymDb.deleteWorkoutLog(id);
+      loadHistory();
     }
   };
 
-  const progressPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const totalCompleted = historyLogs.length;
+
+  // Group logs by date
+  const logsByDate = historyLogs.reduce<Record<string, WorkoutLog[]>>((acc, log) => {
+    if (!acc[log.date]) acc[log.date] = [];
+    acc[log.date].push(log);
+    return acc;
+  }, {});
+
+  const profileName = isElla ? "HERMOSA" : "HANIEL";
+  const profileColor = isElla
+    ? "from-pink-600 to-rose-700"
+    : "from-amber-500 to-orange-600";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-amber-500/20">
-      {/* Top Navbar */}
-      <nav className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+
+      {/* ─── Top Navigation Bar ─────────────────────────────────────────────── */}
+      <nav className="sticky top-0 z-50 border-b border-zinc-900/80 bg-zinc-950/90 backdrop-blur-xl safe-top">
         <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <Shield className={`w-5 h-5 ${isHaniel ? "text-amber-500" : "text-pink-500"}`} />
-            <span className="font-black tracking-widest text-sm font-mono">OLYMPUS v4.0</span>
+          <div className="flex items-center gap-2.5">
+            <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${profileColor} flex items-center justify-center`}>
+              <span className="text-white text-[10px] font-black">{profileName[0]}</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest leading-none">Perfil Activo</p>
+              <p className="text-sm font-black tracking-widest text-zinc-100 leading-tight">{profileName}</p>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
+            {/* Unit Toggle */}
             <button
-              onClick={toggleUnit}
-              title="Cambiar Unidad (KG / LBS)"
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800 text-xs font-mono font-bold text-zinc-400 hover:text-zinc-200 transition-colors uppercase"
+              id="unit-toggle-btn"
+              onClick={onToggleUnit}
+              className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold text-zinc-300 hover:text-white hover:border-zinc-600 transition-all active:scale-95"
             >
-              ⚖️ {unit}
+              ⚖️ {unit.toUpperCase()}
             </button>
+
+            {/* History */}
             <button
-              onClick={resetAll}
-              title="Reiniciar base de datos de este perfil"
-              className="p-2 rounded-lg bg-zinc-900/50 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-900/30 transition-colors"
+              id="history-btn"
+              onClick={() => { setShowHistory(true); setShowSettings(false); }}
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-all active:scale-95"
             >
-              <Trash2 size={14} />
+              <History size={15} />
             </button>
+
+            {/* Settings / Logout */}
             <button
-              onClick={onLogout}
-              className="px-3 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-850 hover:border-red-900/30 text-xs font-mono text-zinc-400 hover:text-red-400 transition-all duration-200 flex items-center space-x-1.5"
+              id="settings-btn"
+              onClick={() => { setShowSettings(true); setShowHistory(false); }}
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-all active:scale-95"
             >
-              <LogOut size={12} />
-              <span>SALIR</span>
+              <Settings size={15} />
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Main Container */}
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-8 pb-20">
-        {/* Profile Card / Header */}
-        <header className="border border-zinc-900 bg-zinc-900/10 p-5 rounded-2xl relative overflow-hidden backdrop-blur-sm shadow-xl">
-          <div
-            className={`absolute top-0 right-0 w-32 h-32 rounded-full filter blur-3xl opacity-10 pointer-events-none -mr-8 -mt-8 ${
-              isHaniel ? "bg-amber-500" : "bg-pink-500"
-            }`}
-          />
-          <div>
-            <span
-              className={`text-xs uppercase tracking-widest font-mono font-bold px-2.5 py-0.5 rounded ${
-                isHaniel
-                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                  : "bg-pink-500/10 text-pink-400 border border-pink-500/20"
-              }`}
-            >
-              ATLETA: {isHaniel ? "HANIEL" : "HERMOSA"}
-            </span>
-            <h1 className="text-3xl font-black tracking-tighter mt-2 text-zinc-100 uppercase">
-              {isHaniel ? "ATHLETE DASHBOARD" : "HERMOSA DASHBOARD"}
-            </h1>
-            <p className="text-xs text-zinc-500 mt-1 font-mono">
-              HYPERMECHANICS PRO // 100% OFFLINE DB CONFIG
-            </p>
-          </div>
+      {/* ─── Main Content ────────────────────────────────────────────────────── */}
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6 space-y-5 pb-24 overflow-y-auto">
 
-          {/* Stats Bar */}
-          <div className="mt-6 pt-4 border-t border-zinc-900/80 grid grid-cols-2 gap-4">
-            <div className="flex items-center space-x-2.5">
-              <div className={`p-2 rounded-lg bg-zinc-900/80 ${isHaniel ? "text-amber-500" : "text-pink-500"}`}>
-                <BarChart2 size={16} />
+        {/* Profile Hero Card */}
+        <header className="relative rounded-3xl overflow-hidden">
+          <div className={`absolute inset-0 bg-gradient-to-br ${profileColor} opacity-10`} />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent" />
+          <div className="relative p-6">
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r ${profileColor} mb-3`}>
+              <Flame size={11} className="text-white" />
+              <span className="text-white text-[10px] font-black tracking-widest uppercase">
+                {isElla ? "HERMOSA TRAINING" : "HANIEL TRAINING"}
+              </span>
+            </div>
+            <h1 className="text-4xl font-black tracking-tighter text-white leading-none">
+              {isElla ? "Tu Rutina\nPersonal" : "Tu Rutina\nPersonal"}
+            </h1>
+            <p className="text-zinc-400 text-sm mt-2 font-mono">
+              4 días de entrenamiento · Sistema de Sobrecarga Progresiva
+            </p>
+
+            {/* Quick Stats */}
+            <div className="flex gap-4 mt-5 pt-4 border-t border-zinc-800/60">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${profileColor} bg-opacity-20`}>
+                  <Trophy size={13} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Sets Completados</p>
+                  <p className="text-base font-black text-zinc-100">{totalCompleted}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono font-bold">Progreso Diario</p>
-                <p className="text-sm font-bold text-zinc-200 font-mono">
-                  {completedCount}/{totalCount} ({progressPercentage}%)
-                </p>
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${profileColor} bg-opacity-20`}>
+                  <BarChart2 size={13} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Días Entrenados</p>
+                  <p className="text-base font-black text-zinc-100">{Object.keys(logsByDate).length}</p>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Progress Visual Bar */}
-          <div className="w-full bg-zinc-905 h-2 rounded-full mt-4 overflow-hidden border border-zinc-900">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                isHaniel ? "bg-amber-500" : "bg-pink-500"
-              }`}
-              style={{ width: `${progressPercentage}%` }}
-            />
           </div>
         </header>
 
-        {/* Days & Exercises */}
-        {currentRoutine.map((block, blockIdx) => (
-          <section key={blockIdx} className="space-y-3">
-            <h2 className="text-xs font-bold tracking-widest text-zinc-400 uppercase bg-zinc-900/80 border border-zinc-900 px-3 py-2 rounded-xl flex items-center justify-between">
-              <span>{block.day}</span>
-            </h2>
-
-            <div className="space-y-1">
-              {block.exercises.map((ex, exIdx) => {
-                return (
-                  <div key={exIdx}>
-                    {ex.isSuperset && (exIdx === 0 || !block.exercises[exIdx - 1]?.isSuperset) && (
-                      <p className="text-[10px] text-amber-500 font-mono mb-1.5 px-2 tracking-widest uppercase flex items-center gap-1 mt-3">
-                        ⛓️ SUPERSET / BISERIE
-                      </p>
-                    )}
-                    {ex.isDropset && (
-                      <p className="text-[10px] text-red-500 font-mono mb-1.5 px-2 tracking-widest uppercase flex items-center gap-1 mt-3">
-                        💥 DROPSET SPECIAL
-                      </p>
-                    )}
-                    <ExerciseCard
-                      name={ex.name}
-                      restTime={ex.restTime}
-                      profile={profile}
-                      unit={unit}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-
-        {/* Historial de Entrenamiento (Database Query View) */}
-        <section className="space-y-3 border-t border-zinc-900 pt-8">
-          <h2 className="text-sm font-bold tracking-wider text-zinc-350 flex items-center gap-2">
-            <History size={16} className={isHaniel ? "text-amber-500" : "text-pink-500"} />
-            <span>📊 HISTORIAL DE SOBRECARGA (OFFLINE DB)</span>
+        {/* ─── Routine Day Cards ──────────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-xs font-bold tracking-widest text-zinc-500 uppercase mb-3 font-mono px-1">
+            📋 TU RUTINA — {routine.length} DÍAS
           </h2>
-          
-          {historyLogs.length === 0 ? (
-            <div className="border border-dashed border-zinc-800 rounded-xl p-6 text-center text-zinc-500 text-xs font-mono">
-              Presiona el check de completar en los ejercicios para registrar logs en la base de datos.
-            </div>
-          ) : (
-            <div className="border border-zinc-900 bg-zinc-900/10 rounded-xl overflow-hidden shadow-md max-h-80 overflow-y-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-zinc-900/60 text-zinc-400 border-b border-zinc-900">
-                  <tr>
-                    <th className="p-3">Fecha</th>
-                    <th className="p-3">Ejercicio</th>
-                    <th className="p-3 text-center">Top Set</th>
-                    <th className="p-3 text-center">Back-Offs</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900/40">
-                  {historyLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-zinc-900/20 text-zinc-300">
-                      <td className="p-3 flex items-center gap-1 text-[11px] text-zinc-500">
-                        <Calendar size={11} />
-                        {log.date}
-                      </td>
-                      <td className="p-3 font-semibold text-zinc-200">{log.exerciseName}</td>
-                      <td className="p-3 text-center font-bold text-amber-400">
-                        {log.topSetKg || "-"} {unit} x {log.topSetReps || "-"}
-                      </td>
-                      <td className="p-3 text-center text-zinc-400">
-                        {log.set3Kg ? `${log.set3Kg} ${unit}` : "-"} / {log.set4Kg ? `${log.set4Kg} ${unit}` : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+
+          <div className="space-y-3">
+            {routine.map((day, idx) => (
+              <DayCard
+                key={day.id}
+                day={day}
+                index={idx}
+                accentColor={accentColor}
+                isElla={isElla}
+                onClick={() => onSelectDay(day)}
+              />
+            ))}
+          </div>
         </section>
+      </div>
+
+      {/* ─── History Modal ────────────────────────────────────────────────────── */}
+      {showHistory && (
+        <HistoryModal
+          logs={historyLogs}
+          logsByDate={logsByDate}
+          unit={unit}
+          onClose={() => setShowHistory(false)}
+          onDelete={handleDeleteLog}
+          isElla={isElla}
+        />
+      )}
+
+      {/* ─── Settings Modal ───────────────────────────────────────────────────── */}
+      {showSettings && (
+        <SettingsModal
+          isElla={isElla}
+          unit={unit}
+          onToggleUnit={onToggleUnit}
+          onLogout={onLogout}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── DayCard Component ─────────────────────────────────────────────────────────
+function DayCard({
+  day, index, accentColor, isElla, onClick
+}: {
+  day: RoutineDay;
+  index: number;
+  accentColor: string;
+  isElla: boolean;
+  onClick: () => void;
+}) {
+  const imgSrc = getImageSrc(day.heroBg);
+  const accentGradient = isElla
+    ? "from-pink-600/80 to-rose-700/60"
+    : "from-amber-500/80 to-orange-600/60";
+
+  return (
+    <button
+      id={`day-card-${index}`}
+      onClick={onClick}
+      className="w-full text-left rounded-2xl overflow-hidden relative group active:scale-[0.98] transition-transform duration-150 shadow-xl"
+      style={{ minHeight: "120px" }}
+    >
+      {/* Background image */}
+      {imgSrc && (
+        <div className="absolute inset-0">
+          <img
+            src={imgSrc}
+            alt={day.title}
+            className="w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-300"
+          />
+        </div>
+      )}
+
+      {/* Gradient overlay */}
+      <div className={`absolute inset-0 bg-gradient-to-r ${accentGradient} opacity-60`} />
+      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/50 to-transparent" />
+
+      {/* Content */}
+      <div className="relative p-5 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-mono font-bold tracking-widest text-zinc-400 uppercase">
+              {day.dayLabel}
+            </span>
+            <span className="text-lg leading-none">{day.emoji}</span>
+          </div>
+          <h3 className="text-lg font-black text-white leading-tight">{day.title}</h3>
+          <p className="text-xs text-zinc-400 mt-1">{day.subtitle}</p>
+
+          {/* Meta chips */}
+          <div className="flex items-center gap-2 mt-2.5">
+            <span className="text-[10px] bg-zinc-800/80 backdrop-blur text-zinc-400 px-2 py-0.5 rounded-full font-mono border border-zinc-700/60">
+              {day.exercises.length} ejercicios
+            </span>
+            <span className="text-[10px] bg-zinc-800/80 backdrop-blur text-zinc-400 px-2 py-0.5 rounded-full font-mono border border-zinc-700/60">
+              ⏱ {day.duration}
+            </span>
+          </div>
+        </div>
+
+        <ChevronRight size={22} className="text-zinc-500 group-hover:text-zinc-300 group-hover:translate-x-1 transition-all duration-200 flex-shrink-0 ml-2" />
+      </div>
+    </button>
+  );
+}
+
+// ─── History Modal ─────────────────────────────────────────────────────────────
+function HistoryModal({
+  logs, logsByDate, unit, onClose, onDelete, isElla
+}: {
+  logs: WorkoutLog[];
+  logsByDate: Record<string, WorkoutLog[]>;
+  unit: "kg" | "lbs";
+  onClose: () => void;
+  onDelete: (id: number) => void;
+  isElla: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-xl flex flex-col animate-slide-up">
+      <div className="flex items-center justify-between p-4 border-b border-zinc-900">
+        <h2 className="font-black text-lg tracking-tight">📊 Historial de Entrenamientos</h2>
+        <button onClick={onClose} className="p-2 rounded-xl bg-zinc-900 text-zinc-400 hover:text-white active:scale-95 transition-all">
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {logs.length === 0 ? (
+          <div className="border border-dashed border-zinc-800 rounded-2xl p-10 text-center text-zinc-600 text-sm font-mono">
+            <p className="text-3xl mb-3">📝</p>
+            <p>Completa ejercicios para registrar tu historial aquí.</p>
+          </div>
+        ) : (
+          Object.entries(logsByDate).map(([date, dateLogs]) => (
+            <div key={date}>
+              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                📅 {new Date(date + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              </p>
+              <div className="space-y-1">
+                {dateLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-3 flex items-center justify-between"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-100 truncate">{log.exerciseName}</p>
+                      <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
+                        Top Set: <span className={`font-bold ${isElla ? "text-pink-400" : "text-amber-400"}`}>{log.topSetWeight || "—"} {log.unit || unit} × {log.topSetReps || "—"} reps</span>
+                        {log.set3Weight && <> · Back-offs: {log.set3Weight} / {log.set4Weight}</>}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => log.id && onDelete(log.id)}
+                      className="ml-3 p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-950/30 transition-all active:scale-95 flex-shrink-0"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Settings Modal ────────────────────────────────────────────────────────────
+function SettingsModal({
+  isElla, unit, onToggleUnit, onLogout, onClose
+}: {
+  isElla: boolean;
+  unit: "kg" | "lbs";
+  onToggleUnit: () => void;
+  onLogout: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-xl flex flex-col animate-slide-up safe-bottom">
+      <div className="flex items-center justify-between p-4 border-b border-zinc-900">
+        <h2 className="font-black text-lg tracking-tight">⚙️ Configuración</h2>
+        <button onClick={onClose} className="p-2 rounded-xl bg-zinc-900 text-zinc-400 hover:text-white active:scale-95 transition-all">
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 p-4 space-y-3">
+        {/* Unit toggle */}
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-zinc-100">Unidad de Peso</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Activa: <span className="font-mono font-bold text-zinc-300">{unit.toUpperCase()}</span></p>
+          </div>
+          <button
+            id="settings-unit-toggle"
+            onClick={onToggleUnit}
+            className={`relative w-16 h-8 rounded-full transition-all duration-300 ${
+              unit === "lbs" ? (isElla ? "bg-pink-500" : "bg-amber-500") : "bg-zinc-700"
+            }`}
+          >
+            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-all duration-300 ${
+              unit === "lbs" ? "left-9" : "left-1"
+            }`} />
+            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white/80 pointer-events-none">
+              {unit === "lbs" ? "LBS" : " KG"}
+            </span>
+          </button>
+        </div>
+
+        {/* Profile info */}
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
+          <p className="font-semibold text-zinc-100 mb-1">Perfil Activo</p>
+          <p className="text-sm text-zinc-400 font-mono">{isElla ? "HERMOSA — Rutina Femenina" : "HANIEL — Sin rutina asignada"}</p>
+        </div>
+
+        {/* Change profile */}
+        <button
+          id="change-profile-btn"
+          onClick={onLogout}
+          className="w-full bg-zinc-900/60 border border-zinc-800 hover:border-red-900/60 hover:bg-red-950/10 rounded-2xl p-4 flex items-center gap-3 transition-all active:scale-[0.98]"
+        >
+          <LogOut size={18} className="text-red-400" />
+          <div className="text-left">
+            <p className="font-semibold text-red-400">Cambiar de Perfil</p>
+            <p className="text-xs text-zinc-600 mt-0.5">Regresa a la pantalla de selección</p>
+          </div>
+        </button>
       </div>
     </div>
   );

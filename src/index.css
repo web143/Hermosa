@@ -4,51 +4,74 @@
   --color-zinc-950: #09090b;
   --color-zinc-900: #18181b;
   --color-zinc-800: #27272a;
+  --color-zinc-850: #1f1f22;
   --font-sans: "Outfit", "Inter", system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  
-  --animate-fade-in: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  --animate-fade-in: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-slide-up: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-slide-in-right: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-glow: glow 8s ease-in-out infinite alternate;
+  --animate-pulse-slow: pulseSlow 3s ease-in-out infinite;
+  --animate-timer-ring: timerRing 1s linear;
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
-
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
   @keyframes glow {
-    0% {
-      filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.1));
-    }
-    100% {
-      filter: drop-shadow(0 0 35px rgba(245, 158, 11, 0.25));
-    }
+    0%   { filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.1)); }
+    100% { filter: drop-shadow(0 0 35px rgba(245, 158, 11, 0.25)); }
+  }
+  @keyframes pulseSlow {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
   }
 }
 
-/* Global scrollbar styling and customization */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #09090b;
-}
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+/* Touch behavior — native-like */
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
-body {
+#root {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+html, body {
   background-color: #09090b;
   color: #f4f4f5;
   font-family: var(--font-sans);
   overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+/* Allow text selection only in inputs */
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Safe area support for iOS */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
