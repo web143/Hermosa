@@ -8,7 +8,7 @@ import {
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
 import { gymDb } from "@/db/olympusDb";
-import { addSession, getTodaySession } from "@/db/profileStore";
+import { addSession, getTodaySession, deleteSession } from "@/db/profileStore";
 import type { ExerciseLog } from "@/db/profileStore";
 import type { TimerMode, Theme } from "@/App";
 import type { TabId } from "@/components/BottomNav";
@@ -567,6 +567,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               <div className="space-y-3">
                 <button
                   onClick={() => {
+                    deleteSession(profile, new Date().toLocaleDateString("en-CA"));
                     const id = repeatModalDayId;
                     setRepeatModalDayId(null);
                     setSelectedDayId(id);
@@ -1156,7 +1157,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           cardBg={cardBg} textPrimary={textPrimary} textMuted={textMuted} />
 
         {/* Notes */}
-        {currentEx.notes && (
+        {currentEx.notes && !nameCustomized && (
           <div className={`mx-4 mb-6 p-4 rounded-2xl border ${isDark ? "bg-zinc-900/40 border-zinc-800/40" : "bg-zinc-50 border-zinc-200"}`}>
             <p className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-1.5 ${textMuted}`}>📝 Técnica</p>
             <p className={`text-sm leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>{currentEx.notes}</p>
