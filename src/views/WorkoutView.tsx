@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
   ChevronRight, Plus, Minus, Sparkles, Info, Flame,
@@ -192,7 +192,6 @@ export default function WorkoutView({ profile, theme, onTimerModeChange }: Worko
   // ── Theme tokens ──────────────────────────────────────────────────
   const bg = isDark ? "bg-zinc-950" : "bg-zinc-50";
   const textPrimary = isDark ? "text-zinc-100" : "text-zinc-900";
-  const textSecondary = isDark ? "text-zinc-400" : "text-zinc-500";
   const textMuted = isDark ? "text-zinc-500" : "text-zinc-400";
   const cardBg = isDark ? "bg-zinc-900/40 border-zinc-800/60" : "bg-white border-zinc-200 shadow-sm";
   const accentFrom = isElla ? "from-pink-600" : "from-amber-500";
@@ -200,6 +199,15 @@ export default function WorkoutView({ profile, theme, onTimerModeChange }: Worko
   const accentText = isElla ? "text-pink-400" : "text-amber-400";
   const accentBorder = isElla ? "border-pink-500/40" : "border-amber-500/40";
   const accentBg = isElla ? "bg-pink-500/10" : "bg-amber-500/10";
+  // ── Card entry animation (restored from working HomeView) ──────────
+  const cardVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1, y: 0,
+      transition: { type: "spring", stiffness: 260, damping: 24, delay: i * 0.08 },
+    }),
+  };
+
   // ==================================================================
   // PHASE 1 — Day Selection
   // ==================================================================
@@ -213,43 +221,77 @@ export default function WorkoutView({ profile, theme, onTimerModeChange }: Worko
           </div>
 
           <div className="space-y-3">
-            {routine.map((day) => (
-              <button
-                key={day.id}
-                id={`select-day-${day.id}`}
-                onClick={(e) => { e.preventDefault(); setSelectedDayId(day.id); }}
-                style={{ minHeight: "110px" }}
-                className={`w-full text-left rounded-2xl relative group transition-all ${
-                  isDark ? "bg-zinc-900 border border-zinc-800 shadow-black/30" : "bg-white border border-zinc-200 shadow-zinc-200/80"
-                }`}
-              >
-                <div className="p-4 flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`text-[10px] font-mono font-bold tracking-widest uppercase ${textSecondary}`}>
-                        {day.dayLabel}
-                      </span>
-                      <span className="text-base leading-none">{day.emoji}</span>
+            {routine.map((day, idx) => {
+              const imgSrc = getImageSrc(day.heroBg);
+              const accentGradient = isElla ? "from-pink-600/70 to-rose-700/50" : "from-amber-500/70 to-orange-600/50";
+              return (
+                <motion.button
+                  key={day.id}
+                  id={`day-card-${idx}`}
+                  onClick={() => setSelectedDayId(day.id)}
+                  variants={cardVariants}
+                  custom={idx}
+                  initial="hidden"
+                  animate="visible"
+                  whileHover={{ scale: 1.015 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`w-full text-left rounded-2xl overflow-hidden relative group shadow-sm ${
+                    isDark ? "shadow-black/30" : "shadow-zinc-200/80"
+                  }`}
+                  style={{ minHeight: "120px" }}
+                >
+                  {/* Base background layer */}
+                  <div className={`absolute inset-0 ${isDark ? "bg-zinc-900" : "bg-white border border-zinc-200"} rounded-2xl`} />
+
+                  {/* Hero image background */}
+                  {imgSrc && (
+                    <div className="absolute inset-0 rounded-2xl overflow-hidden">
+                      <img src={imgSrc} alt={day.title}
+                        className={`w-full h-full object-cover ${isDark ? "opacity-25 group-hover:opacity-35" : "opacity-10 group-hover:opacity-20"} transition-opacity duration-300`}
+                      />
                     </div>
-                    <h3 className={`text-base font-black leading-tight ${textPrimary}`}>{day.title}</h3>
-                    <p className={`text-xs mt-0.5 ${textSecondary}`}>{day.subtitle}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono border ${
-                        isDark ? "bg-zinc-800 text-zinc-400 border-zinc-700/60" : "bg-zinc-100 text-zinc-500 border-zinc-200"
-                      }`}>
-                        {day.exercises.length} ejercicios
-                      </span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono border ${
-                        isDark ? "bg-zinc-800 text-zinc-400 border-zinc-700/60" : "bg-zinc-100 text-zinc-500 border-zinc-200"
-                      }`}>
-                        ⏱ {day.duration}
-                      </span>
+                  )}
+
+                  {/* Accent gradient overlay */}
+                  {isDark
+                    ? <div className={`absolute inset-0 bg-gradient-to-r ${accentGradient} opacity-50 rounded-2xl`} />
+                    : <div className={`absolute inset-0 bg-gradient-to-r ${accentGradient} opacity-20 rounded-2xl`} />
+                  }
+
+                  {/* Content gradient overlay */}
+                  <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? "from-zinc-950/90 via-zinc-950/50 to-transparent" : "from-white/95 via-white/70 to-transparent"} rounded-2xl`} />
+
+                  {/* Foreground content */}
+                  <div className="relative p-5 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-mono font-bold tracking-widest uppercase ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+                          {day.dayLabel}
+                        </span>
+                        <span className="text-lg leading-none">{day.emoji}</span>
+                      </div>
+                      <h3 className={`text-lg font-black leading-tight ${isDark ? "text-white" : "text-zinc-900"}`}>{day.title}</h3>
+                      <p className={`text-xs mt-1 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{day.subtitle}</p>
+                      <div className="flex items-center gap-2 mt-2.5">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+                          isDark ? "bg-zinc-800/80 text-zinc-400 border-zinc-700/60" : "bg-zinc-100 text-zinc-500 border-zinc-200"
+                        }`}>
+                          {day.exercises.length} ejercicios
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+                          isDark ? "bg-zinc-800/80 text-zinc-400 border-zinc-700/60" : "bg-zinc-100 text-zinc-500 border-zinc-200"
+                        }`}>
+                          ⏱ {day.duration}
+                        </span>
+                      </div>
                     </div>
+                    <ChevronRight size={22} className={`group-hover:translate-x-1 transition-all duration-200 flex-shrink-0 ml-2 ${
+                      isDark ? "text-zinc-500 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
+                    }`} />
                   </div>
-                  <ChevronRight size={20} className={`flex-shrink-0 ml-2 ${isDark ? "text-zinc-600" : "text-zinc-300"}`} />
-                </div>
-              </button>
-            ))}
+                </motion.button>
+              );
+            })}
           </div>
         </div>
       </div>
