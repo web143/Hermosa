@@ -15,7 +15,6 @@ interface DashboardProps {
 
 export default function Dashboard({ profile, unit, onToggleUnit, onLogout, onSelectDay }: DashboardProps) {
   const isElla = profile === "ella";
-  const accentColor = isElla ? "pink" : "amber";
   const routine = getRoutineForProfile(profile);
 
   const [historyLogs, setHistoryLogs] = useState<WorkoutLog[]>([]);
@@ -163,7 +162,6 @@ export default function Dashboard({ profile, unit, onToggleUnit, onLogout, onSel
                 key={day.id}
                 day={day}
                 index={idx}
-                accentColor={accentColor}
                 isElla={isElla}
                 onClick={() => onSelectDay(day)}
               />
@@ -200,11 +198,10 @@ export default function Dashboard({ profile, unit, onToggleUnit, onLogout, onSel
 
 // ─── DayCard Component ─────────────────────────────────────────────────────────
 function DayCard({
-  day, index, accentColor, isElla, onClick
+  day, index, isElla, onClick
 }: {
   day: RoutineDay;
   index: number;
-  accentColor: string;
   isElla: boolean;
   onClick: () => void;
 }) {
