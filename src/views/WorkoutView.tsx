@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, type Variants } from "framer-motion";
 import {
   Zap, Clock, Check, RotateCcw, ArrowLeft, ArrowRight,
-  ChevronRight, Plus, Minus, Sparkles, Info, Flame, BarChart3,
+  ChevronRight, Plus, Minus, Sparkles, Info, Flame, BarChart3, Play,
 } from "lucide-react";
 import { getRoutineForProfile, getImageSrc } from "@/data/routines";
 import type { ProfileId } from "@/data/routines";
@@ -18,6 +18,7 @@ interface WorkoutViewProps {
   timerMode: TimerMode;
   onTimerModeChange: (mode: TimerMode) => void;
   onNavigateToTab?: (tab: TabId) => void;
+  unit: "kg" | "lbs";
 }
 
 interface ExerciseExecutionState {
@@ -77,7 +78,7 @@ function initExerciseState(): ExerciseExecutionState {
   };
 }
 
-export default function WorkoutView({ profile, theme, timerMode, onTimerModeChange, onNavigateToTab }: WorkoutViewProps) {
+export default function WorkoutView({ profile, theme, timerMode, onTimerModeChange, onNavigateToTab, unit }: WorkoutViewProps) {
   const isDark = theme === "dark";
   const isElla = profile === "ella";
   const routine = getRoutineForProfile(profile);
@@ -89,6 +90,42 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const [validationToast, setValidationToast] = useState<string | null>(null);
   const [repeatModalDayId, setRepeatModalDayId] = useState<string | null>(null);
   const [modeModalOpen, setModeModalOpen] = useState(false);
+
+  // ── Active Workout Persistence ──────────────────────────────
+  const SESSION_KEY = `gym_workout_session_${profile}`;
+  const [savedSession, setSavedSession] = useState<{
+    selectedDayId: string;
+    currentExIdx: number;
+    exerciseStates: ExerciseExecutionState[];
+  } | null>(null);
+
+  // Restore saved session on mount
+  useEffect(() => {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw);
+      if (saved.selectedDayId) {
+        setSavedSession(saved);
+      }
+    } catch { /* ignore */ }
+  }, [SESSION_KEY]);
+
+  // Persist execution state on every change
+  useEffect(() => {
+    if (phase === "execution") {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        selectedDayId,
+        currentExIdx,
+        exerciseStates,
+      }));
+    }
+  }, [phase, currentExIdx, exerciseStates, selectedDayId, SESSION_KEY]);
+
+  const clearSavedSession = () => {
+    localStorage.removeItem(SESSION_KEY);
+    setSavedSession(null);
+  };
 
   const selectedDay = routine.find((d) => d.id === selectedDayId) || null;
 
@@ -109,6 +146,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   };
 
   const backToSelect = () => {
+    clearSavedSession();
     setSelectedDayId(null);
     setPhase("select");
   };
@@ -138,7 +176,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
           warmupEnabled: st.warmupEnabled,
           warmupWeight: st.warmupWeight,
           isCompleted: st.completed,
-          unit: "kg" as const,
+          unit,
           set3Reps: st.set3Reps || undefined,
           set4Reps: st.set4Reps || undefined,
           set5Weight: st.set5Enabled ? (st.set5Weight || undefined) : undefined,
@@ -156,6 +194,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
     });
 
     window.dispatchEvent(new Event("gym_db_update"));
+    clearSavedSession();
     setPhase("select");
     setSelectedDayId(null);
   };
@@ -185,6 +224,44 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <p className={`text-xs font-mono uppercase tracking-widest ${textMuted}`}>Workout</p>
             <h1 className={`text-3xl font-black tracking-tighter ${textPrimary}`}>Elige tu entrenamiento</h1>
           </div>
+
+          {/* Continue Active Routine */}
+          {savedSession && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              onClick={() => {
+                const saved = savedSession;
+                clearSavedSession();
+                setSelectedDayId(saved.selectedDayId);
+                setCurrentExIdx(saved.currentExIdx);
+                setExerciseStates(saved.exerciseStates);
+                setPhase("execution");
+              }}
+              className="w-full text-left rounded-2xl overflow-hidden relative group shadow-lg"
+              style={{ minHeight: "100px" }}
+            >
+              <div className={`absolute inset-0 ${isDark ? "bg-zinc-900" : "bg-white border border-zinc-200"} rounded-2xl`} />
+              <div className={`absolute inset-0 bg-gradient-to-r from-pink-600/20 to-rose-700/10 rounded-2xl`} />
+              <div className="relative p-5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-pink-500/20 border border-pink-500/30 flex items-center justify-center">
+                    <Play size={20} className="text-pink-400 ml-0.5" />
+                  </div>
+                  <div>
+                    <p className={`text-[10px] font-mono font-bold tracking-widest uppercase ${textMuted}`}>Sesión Activa</p>
+                    <h3 className={`text-lg font-black leading-tight ${isDark ? "text-white" : "text-zinc-900"}`}>Continuar Rutina</h3>
+                    <p className={`text-xs mt-0.5 ${textMuted}`}>Toca para retomar donde lo dejaste</p>
+                  </div>
+                </div>
+                <ChevronRight size={22} className={`group-hover:translate-x-1 transition-all duration-200 flex-shrink-0 ml-2 ${
+                  isDark ? "text-zinc-500 group-hover:text-zinc-300" : "text-zinc-300 group-hover:text-zinc-600"
+                }`} />
+              </div>
+            </motion.button>
+          )}
+
           <div className="space-y-3">
             {routine.map((day, idx) => {
               const imgSrc = getImageSrc(day.heroBg);
@@ -521,7 +598,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
         topSetReps: currentState.topSetReps,
         set3Weight: currentState.set3Weight,
         set4Weight: currentState.set4Weight,
-        unit: "kg",
+        unit,
       });
     } catch (e) {
       console.error("Save error", e);
@@ -538,7 +615,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
   const accentBg = isElla ? "bg-pink-500/10" : "bg-amber-500/10";
 
   const repFeedback = evaluateReps(parseInt(currentState.topSetReps) || 0);
-  const step = 2.5;
+  const step = unit === "lbs" ? 5 : 2.5;
 
   return (
     <div className={`min-h-full ${bg} ${textPrimary} flex flex-col`}>
@@ -646,7 +723,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
                 <p className={`text-[11px] font-mono mt-0.5 ${textMuted}`}>~50% del peso</p>
               </div>
               <NumericStepper value={currentState.warmupWeight}
-                onChange={(v) => updateExState(currentExIdx, { warmupWeight: v })} unit="kg" step={step} isDark={isDark} />
+                onChange={(v) => updateExState(currentExIdx, { warmupWeight: v })} unit={unit} step={step} isDark={isDark} />
             </div>
           )}
 
@@ -658,7 +735,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <WeightRepRow
               weight={currentState.topSetWeight} onWeightChange={(v) => updateExState(currentExIdx, { topSetWeight: v })}
               reps={currentState.topSetReps} onRepsChange={(v) => updateExState(currentExIdx, { topSetReps: v })}
-              unit="kg" step={step} highlight isDark={isDark}
+              unit={unit} step={step} highlight isDark={isDark}
             />
             {repFeedback && (
               <div className="mt-3 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/60 flex items-center gap-2">
@@ -674,7 +751,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <WeightRepRow
               weight={currentState.set3Weight} onWeightChange={(v) => updateExState(currentExIdx, { set3Weight: v })}
               reps={currentState.set3Reps} onRepsChange={(v) => updateExState(currentExIdx, { set3Reps: v })}
-              unit="kg" step={step} isDark={isDark}
+              unit={unit} step={step} isDark={isDark}
             />
           </div>
 
@@ -684,7 +761,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
             <WeightRepRow
               weight={currentState.set4Weight} onWeightChange={(v) => updateExState(currentExIdx, { set4Weight: v })}
               reps={currentState.set4Reps} onRepsChange={(v) => updateExState(currentExIdx, { set4Reps: v })}
-              unit="kg" step={step} isDark={isDark}
+              unit={unit} step={step} isDark={isDark}
             />
           </div>
 
@@ -705,7 +782,7 @@ export default function WorkoutView({ profile, theme, timerMode, onTimerModeChan
               <WeightRepRow
                 weight={currentState.set5Weight} onWeightChange={(v) => updateExState(currentExIdx, { set5Weight: v })}
                 reps={currentState.set5Reps} onRepsChange={(v) => updateExState(currentExIdx, { set5Reps: v })}
-                unit="kg" step={step} isDark={isDark}
+                unit={unit} step={step} isDark={isDark}
               />
             )}
           </div>
